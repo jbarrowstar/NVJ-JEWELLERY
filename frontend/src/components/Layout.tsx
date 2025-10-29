@@ -15,26 +15,21 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     setTimeout(() => navigate('/'), 1500);
   };
 
+  const marginLeft = sidebarOpen ? 'ml-64' : 'ml-16';
+
   return (
-    <div className="min-h-screen bg-gray-100 font-garamond relative">
-      {/* TopBar stays visible */}
+    <div className="min-h-screen bg-gray-100 font-garamond">
       <TopBar setShowConfirm={setShowConfirm} />
+      <Sidebar isOpen={sidebarOpen} toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
 
-      {/* Main layout */}
-      <div className="flex relative z-0">
-        <Sidebar isOpen={sidebarOpen} toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
-        <main className="p-6 overflow-y-auto grow">{children}</main>
-      </div>
+      <main
+        className={`p-6 pt-20 transition-all duration-300   ${marginLeft}`}
+      >
+        {children}
+      </main>
 
       {showConfirm && (
-        <div className="absolute top-16 left-0 right-0 bottom-0 bg-gray-900 bg-opacity-75 z-40" />
-      )}
-
-
-
-      {/* Confirmation modal above everything except TopBar */}
-      {showConfirm && (
-        <div className="absolute top-16 left-0 right-0 bottom-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-400 bg-opacity-20">
           <div className="bg-white rounded shadow-lg p-6 w-full max-w-sm text-center">
             <h2 className="text-lg font-semibold mb-4">
               Are you sure you want to log out for the day?
