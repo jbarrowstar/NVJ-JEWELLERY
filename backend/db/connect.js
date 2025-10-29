@@ -1,14 +1,21 @@
+require('dotenv').config();
 const mongoose = require('mongoose');
 
 const connectDB = async () => {
+  const uri = process.env.MONGO_URI;
+
+  if (!uri) {
+    throw new Error('❌ MONGO_URI not found in environment');
+  }
+
   try {
-    await mongoose.connect('mongodb://localhost:27017/nirvaha', {
+    await mongoose.connect(uri, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
-    console.log('✅ MongoDB connected');
+    console.log('✅ MongoDB connected to Atlas');
   } catch (err) {
-    console.error('❌ MongoDB connection error:', err);
+    console.error('❌ MongoDB connection error:', err.message);
     process.exit(1);
   }
 };

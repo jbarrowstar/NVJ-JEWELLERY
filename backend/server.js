@@ -1,24 +1,25 @@
+require('dotenv').config();
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
+const connectDB = require('./db/connect'); // ✅ Modular Atlas connection
 
 const authRoutes = require('./routes/auth');
 const productRoutes = require('./routes/products');
 const customerRoutes = require('./routes/customers');
-const orderRoutes = require('./routes/orders'); // ✅ NEW
+const orderRoutes = require('./routes/orders');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-mongoose.connect('mongodb://localhost:27017/nirvaha', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
+// ✅ Use modular connection (Atlas or local via .env)
+connectDB();
 
+// API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/customers', customerRoutes);
-app.use('/api/orders', orderRoutes); // ✅ NEW
+app.use('/api/orders', orderRoutes);
 
-app.listen(3001, () => console.log('Backend running on port 3001'));
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => console.log(`🚀 Backend running on port ${PORT}`));
