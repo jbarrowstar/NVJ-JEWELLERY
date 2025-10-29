@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type JSX } from 'react';
+import { useState, useEffect, type JSX } from 'react';
 import Layout from '../components/Layout';
 import { fetchProducts } from '../services/productService';
 import { saveCustomer } from '../services/customerService';
