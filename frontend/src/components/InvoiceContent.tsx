@@ -1,4 +1,5 @@
 import React from 'react';
+import logo from '../assets/logo.png';
 
 const InvoiceContent = React.forwardRef<HTMLDivElement, {
   order: any;
@@ -11,27 +12,29 @@ const InvoiceContent = React.forwardRef<HTMLDivElement, {
   return (
     <div
       ref={ref}
-      style={{
-        width: '210mm',
-        minHeight: '297mm',
-        padding: '20mm',
-        boxSizing: 'border-box',
-        fontFamily: 'Arial, sans-serif',
-        backgroundColor: '#fff',
-        color: '#000',
-      }}
+      className="w-[210mm] min-h-[297mm] p-[20mm] bg-white text-black font-sans text-sm leading-relaxed"
     >
-      <h2 style={{ fontSize: '20px', fontWeight: 'bold', textAlign: 'center', marginBottom: '16px' }}>
-        🧾 Nirvaha Jewellers – Invoice
-      </h2>
+      {/* Header */}
+      <div className="flex justify-between items-center mb-4">
+        <img src={logo} alt="Nirvaha Jewellers" className="h-16 object-contain" />
+        <div className="text-right">
+          <h1 className="text-2xl font-bold text-[#CC9200]">NIRVAHA JEWELLERS</h1>
+          <p className="text-xs">Add Address</p>
+          <p className="text-xs">Mobile: +91 9999999999 | Email: company@gmail.com</p>
+          <p className="text-xs">GSTIN: 29AAAAA1234F000 | PAN: 29AAAAA1234F</p>
+        </div>
+      </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+      {/* Invoice Metadata */}
+      <div className="grid grid-cols-2 gap-6 mb-6">
         <div>
+          <h2 className="font-semibold mb-2">Billing Details</h2>
           <p><strong>Name:</strong> {order?.customer?.name || '—'}</p>
-          <p><strong>Phone:</strong> {order?.customer?.phone || '—'}</p>
+          <p><strong>Mobile:</strong> {order?.customer?.phone || '—'}</p>
           <p><strong>Email:</strong> {order?.customer?.email || '—'}</p>
         </div>
         <div>
+          <h2 className="font-semibold mb-2">Invoice Info</h2>
           <p><strong>Invoice No:</strong> {order?.invoiceNumber || '—'}</p>
           <p><strong>Date:</strong> {order?.date || '—'}</p>
           <p><strong>Time:</strong> {order?.time || '—'}</p>
@@ -39,44 +42,57 @@ const InvoiceContent = React.forwardRef<HTMLDivElement, {
         </div>
       </div>
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', marginBottom: '24px' }}>
-        <thead style={{ backgroundColor: '#f3f3f3' }}>
+      {/* Item Table */}
+      <table className="w-full border-collapse mb-6 text-xs">
+        <thead className="bg-gray-100">
           <tr>
-            <th style={{ padding: '8px', textAlign: 'left', border: '1px solid #ccc' }}>Product</th>
-            <th style={{ padding: '8px', textAlign: 'right', border: '1px solid #ccc' }}>Price</th>
-            <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #ccc' }}>Qty</th>
-            <th style={{ padding: '8px', textAlign: 'right', border: '1px solid #ccc' }}>Subtotal</th>
+            <th className="border p-2 text-left">Sr.</th>
+            <th className="border p-2 text-left">Item Description</th>
+            <th className="border p-2 text-center">HSN/SAC</th>
+            <th className="border p-2 text-center">Qty</th>
+            <th className="border p-2 text-center">Unit</th>
+            <th className="border p-2 text-right">List Price</th>
+            <th className="border p-2 text-right">Disc.</th>
+            <th className="border p-2 text-right">Tax %</th>
+            <th className="border p-2 text-right">Amount (₹)</th>
           </tr>
         </thead>
         <tbody>
           {order?.items?.map((item: any, idx: number) => (
             <tr key={idx}>
-              <td style={{ padding: '8px', border: '1px solid #ccc' }}>{item.name}</td>
-              <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ccc' }}>
-                ₹{item.price.toLocaleString()}
-              </td>
-              <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #ccc' }}>{item.qty}</td>
-              <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ccc' }}>
-                ₹{(item.price * item.qty).toLocaleString()}
-              </td>
+              <td className="border p-2">{idx + 1}</td>
+              <td className="border p-2">{item.name}</td>
+              <td className="border p-2 text-center">9983</td>
+              <td className="border p-2 text-center">{item.qty}</td>
+              <td className="border p-2 text-center">N.A.</td>
+              <td className="border p-2 text-right">₹{item.price.toLocaleString()}</td>
+              <td className="border p-2 text-right">—</td>
+              <td className="border p-2 text-right">{appliedTaxRate}%</td>
+              <td className="border p-2 text-right">₹{(item.price * item.qty).toLocaleString()}</td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      <div style={{ textAlign: 'right', fontSize: '14px', lineHeight: '1.6' }}>
+      {/* Summary */}
+      <div className="text-right text-sm space-y-1 mb-6">
         <p><strong>Subtotal:</strong> ₹{subtotal.toLocaleString()}</p>
         <p><strong>Discount:</strong> - ₹{appliedDiscount.toLocaleString()}</p>
         <p><strong>Tax ({appliedTaxRate}%):</strong> ₹{taxAmount.toLocaleString()}</p>
-        <p style={{ fontSize: '16px', fontWeight: 'bold', paddingTop: '8px', borderTop: '1px solid #ccc' }}>
-          <strong>Grand Total:</strong> ₹{grandTotal.toLocaleString()}
+        <p className="text-lg font-bold text-[#CC9200] pt-2 border-t">
+          Grand Total: ₹{grandTotal.toLocaleString()}
         </p>
+        <p className="text-xs mt-2">Rs. {grandTotal.toLocaleString()} Only</p>
       </div>
 
-      <div style={{ marginTop: '32px', fontSize: '12px', color: '#555' }}>
-        <p>Goods once sold will not be taken back.</p>
-        <p>Subject to jurisdiction only.</p>
-        <p style={{ marginTop: '16px', textAlign: 'right', fontWeight: 'bold' }}>— Nirvaha Jewellers</p>
+      {/* Footer */}
+      <div className="text-xs text-gray-600">
+        <p>Terms and Conditions:</p>
+        <ul className="list-disc ml-4">
+          <li>Goods once sold will not be taken back.</li>
+          <li>Subject to jurisdiction only.</li>
+        </ul>
+        <p className="mt-4 text-right font-semibold">— Nirvaha Jewellers</p>
       </div>
     </div>
   );
