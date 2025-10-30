@@ -4,8 +4,6 @@ import { fetchProducts } from '../services/productService';
 import { saveCustomer } from '../services/customerService';
 import { saveOrder } from '../services/orderService';
 import { AiOutlineDelete, AiOutlineProduct } from 'react-icons/ai';
-import { IoMdQrScanner } from 'react-icons/io';
-import { Html5QrcodeScanner } from 'html5-qrcode';
 import { FaShoppingCart, FaUser, FaPercentage, FaCalculator, FaTimes } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import Fuse from 'fuse.js';
@@ -13,8 +11,6 @@ import InvoiceContent from '../components/InvoiceContent';
 import { useRef } from 'react';
 import { useReactToPrint } from 'react-to-print';
 import html2pdf from 'html2pdf.js';
-
-
 
 function SectionHeader({ icon, title }: { icon: JSX.Element; title: string }) {
   return (
@@ -24,7 +20,6 @@ function SectionHeader({ icon, title }: { icon: JSX.Element; title: string }) {
     </div>
   );
 }
-
 
 export default function BillingPage() {
   const [cart, setCart] = useState<{ name: string; price: number; qty: number; sku: string }[]>([]);
@@ -60,8 +55,6 @@ export default function BillingPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'Cash' | 'Card' | 'UPI' | ''>('');
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-
-  const [showQRScanner, setShowQRScanner] = useState(false);
 
   const [lastOrder, setLastOrder] = useState<any>(null);
 
@@ -121,31 +114,6 @@ export default function BillingPage() {
     }, 200);
     return () => clearTimeout(timeout);
   }, [customerSearchTerm, customerList, customerFuse]);
-
-useEffect(() => {
-  if (showQRScanner) {
-    const scanner = new Html5QrcodeScanner(
-      'qr-reader',
-      { fps: 10, qrbox: 250 },
-      false
-    );
-
-    scanner.render(
-      (decodedText) => {
-        setSearchTerm(decodedText.trim()); //
-        setShowQRScanner(false);
-        toast.success(`Scanned: ${decodedText}`);
-      },
-      (error) => {
-        console.warn('QR scan error:', error);
-      }
-    );
-
-    return () => {
-      scanner.clear().catch((err) => console.error('Failed to clear scanner', err));
-    };
-  }
-}, [showQRScanner]);
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
   const taxAmount = Math.round((subtotal * appliedTaxRate) / 100);
@@ -263,56 +231,53 @@ useEffect(() => {
 
   };
 
-const invoiceRef = useRef<HTMLDivElement>(null);
+      const invoiceRef = useRef<HTMLDivElement>(null);
 
-const handlePrint = useCallback(
-  useReactToPrint({
-    contentRef: invoiceRef,
-    documentTitle: `Invoice-${lastOrder?.invoiceNumber || 'Nirvaha'}`,
-    onAfterPrint: () => {
-      console.log('Print completed');
-      // Optional: reset modal or state here if needed
-    },
-  }),
-  [lastOrder] // ✅ ensures the print function updates when the order changes
-);
-
-
-const handleDownloadPDF = () => {
-  if (!invoiceRef.current) return;
-
-  const element = invoiceRef.current.cloneNode(true) as HTMLElement;
-
-  // Remove unsupported color functions
-  element.querySelectorAll('*').forEach((el) => {
-    const style = window.getComputedStyle(el);
-    if (style.color.includes('oklch') || style.backgroundColor.includes('oklch')) {
-      (el as HTMLElement).style.color = '#000';
-      (el as HTMLElement).style.backgroundColor = '#fff';
-    }
-  });
-
-  html2pdf()
-    .set({
-      margin: [10, 10, 10, 10],
-      filename: `Invoice-${lastOrder?.invoiceNumber || 'Nirvaha'}.pdf`,
-      html2canvas: {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-      },
-      jsPDF: {
-        unit: 'mm',
-        format: 'a4',
-        orientation: 'portrait',
-      },
-    })
-    .from(element)
-    .save();
-};
+      const handlePrint = useCallback(
+        useReactToPrint({
+          contentRef: invoiceRef,
+          documentTitle: `Invoice-${lastOrder?.invoiceNumber || 'Nirvaha'}`,
+          onAfterPrint: () => {
+            console.log('Print completed');
+            // Optional: reset modal or state here if needed
+          },
+        }),
+        [lastOrder] // ✅ ensures the print function updates when the order changes
+      );
 
 
+      const handleDownloadPDF = () => {
+        if (!invoiceRef.current) return;
 
+        const element = invoiceRef.current.cloneNode(true) as HTMLElement;
+
+        // Remove unsupported color functions
+        element.querySelectorAll('*').forEach((el) => {
+          const style = window.getComputedStyle(el);
+          if (style.color.includes('oklch') || style.backgroundColor.includes('oklch')) {
+            (el as HTMLElement).style.color = '#000';
+            (el as HTMLElement).style.backgroundColor = '#fff';
+          }
+        });
+
+        html2pdf()
+          .set({
+            margin: [10, 10, 10, 10],
+            filename: `Invoice-${lastOrder?.invoiceNumber || 'Nirvaha'}.pdf`,
+            html2canvas: {
+              scale: 2,
+              useCORS: true,
+              logging: false,
+            },
+            jsPDF: {
+              unit: 'mm',
+              format: 'a4',
+              orientation: 'portrait',
+            },
+          })
+          .from(element)
+          .save();
+      };
     return (
     <>
       <Layout>
@@ -322,42 +287,52 @@ const handleDownloadPDF = () => {
             {/* Product Selection */}
             <div className="bg-white rounded shadow-sm p-4 space-y-4">
               <SectionHeader icon={<AiOutlineProduct />} title="Product Selection" />
-<div className="flex items-center gap-2">
-  <input
-    type="text"
-    placeholder="Search by name or SKU..."
-    className="border p-2 rounded w-full"
-    value={searchTerm}
-    onChange={(e) => setSearchTerm(e.target.value)}
-  />
-  <button
-    onClick={() => setShowQRScanner(true)}
-    className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-2 rounded text-sm flex items-center gap-1"
-  >
-    <IoMdQrScanner className="text-lg" />
-    Scan
-  </button>
+              
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Scan or search by name or SKU..."
+                  className="border p-2 rounded w-full"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const query = searchTerm.trim();
+                      if (!query || !productFuse) return;
 
+                      const results = productFuse.search(query);
+                      if (results.length > 0) {
+                        const item = results[0].item;
+                        handleAddItem(item.name, item.price, item.sku);
+                        toast.success(`Added "${item.name}" to cart`);
+                      } else {
+                        toast.error(`No matches found for "${query}"`);
+                      }
 
-
-
-                {searchTerm && (
-                  <div className="bg-white border rounded shadow-sm p-2 text-sm">
-                    <p className="text-gray-500 mb-1">Suggestions:</p>
-                    <ul className="space-y-1">
-                      {filteredItems.map((item, idx) => (
-                        <li
-                          key={idx}
-                          className="cursor-pointer hover:text-[#CC9200]"
-                          onClick={() => handleAddItem(item.name, item.price, item.sku)}
-                        >
-                          {item.name}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                      setSearchTerm('');
+                    }
+                  }}
+                  autoFocus
+                />
               </div>
+
+              {searchTerm && (
+                <div className="bg-white border rounded shadow-sm p-2 text-sm">
+                  <p className="text-gray-500 mb-1">Suggestions:</p>
+                  <ul className="space-y-1">
+                    {filteredItems.map((item, idx) => (
+                      <li
+                        key={idx}
+                        className="cursor-pointer hover:text-[#CC9200]"
+                        onClick={() => handleAddItem(item.name, item.price, item.sku)}
+                      >
+                        {item.name}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {filteredItems.map((item, idx) => (
                   <div
@@ -793,38 +768,6 @@ const handleDownloadPDF = () => {
     </div>
   </div>
 )}
-
-
-{/* Scanner Modal */}
-{showQRScanner && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-    <div className="bg-white rounded shadow-lg p-6 w-full max-w-md text-sm relative">
-      {/* Close Button */}
-      <button
-        onClick={() => setShowQRScanner(false)}
-        className="absolute top-4 right-4 text-gray-500 hover:text-red-500 text-xl"
-        aria-label="Close"
-      >
-        <FaTimes />
-      </button>
-
-      {/* Title */}
-      <h2 className="text-lg font-semibold mb-2 text-center">Scan Product QR</h2>
-
-      {/* Instructions */}
-      <p className="text-center text-sm text-gray-600 mb-4">
-        Hold the QR code steady in the center of the box. Once scanned, the product code will appear in the search bar.
-      </p>
-
-      {/* Scanner Container */}
-      <div className="border rounded overflow-hidden">
-        <div id="qr-reader" className="w-full h-64" />
-      </div>
-    </div>
-  </div>
-)}
-
-
 </>
   )
 }
