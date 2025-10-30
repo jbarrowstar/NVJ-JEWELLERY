@@ -16,8 +16,9 @@ import { checkReturnExists } from '../services/returnService';
 
 type Order = {
   _id: string;
+  orderId?: string;
   invoiceNumber: string;
-  date: string; // format: dd/mm/yyyy
+  date: string;
   time: string;
   customer: {
     name: string;
@@ -51,8 +52,10 @@ export default function OrderHistoryPage() {
         if (data.success) {
           setOrders(data.orders);
           const fuseInstance = new Fuse(data.orders, {
-            keys: ['_id', 'invoiceNumber', 'customer.name'],
+            keys: ['orderId', 'invoiceNumber', 'customer.name'],
             threshold: 0.3,
+            ignoreLocation: true,
+            includeScore: true,
           });
           setFuse(fuseInstance);
         }
@@ -71,29 +74,29 @@ export default function OrderHistoryPage() {
   const filteredByDate = orders.filter((order) => {
     if (!selectedDate) return true;
     const [day, month, year] = order.date.split('/');
-    const normalizedOrderDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-    return normalizedOrderDate === selectedDate;
+    const normalized = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    return normalized === selectedDate;
   });
 
-  const fuseResults =
-    searchTerm.trim() && fuse
-      ? fuse.search(searchTerm).map((r) => r.item).filter((order) => filteredByDate.includes(order))
-      : filteredByDate;
+  const filteredResults = (() => {
+    if (!fuse) return filteredByDate;
+    if (searchTerm.trim()) {
+      const matches = fuse
+        .search(searchTerm.trim())
+        .filter((r) => r.score !== undefined && r.score <= 0.1)
+        .map((r) => r.item);
+      return matches.filter((order) => filteredByDate.includes(order));
+    }
+    return filteredByDate;
+  })();
 
   const handleReturn = async (order: Order) => {
     try {
-      const trimmedOrderId = order._id.trim();
-      if (!trimmedOrderId) {
-        toast.error('Invalid order ID.');
-        return;
-      }
-
-      const exists = await checkReturnExists(trimmedOrderId);
+      const exists = await checkReturnExists(order._id.trim());
       if (exists) {
         toast.error('Return already processed for this order.');
         return;
       }
-
       setReturnOrder(order);
       setShowReturnModal(true);
     } catch (err) {
@@ -144,39 +147,47 @@ export default function OrderHistoryPage() {
             </tr>
           </thead>
           <tbody>
-            {fuseResults.map((order, idx) => (
-              <tr key={idx} className="border-t">
-                <td className="p-2">{order._id}</td>
-                <td className="p-2">{order.date} {order.time}</td>
-                <td className="p-2">{order.customer.name}</td>
-                <td className="p-2 text-center">{order.items.length}</td>
-                <td className="p-2">{order.invoiceNumber}</td>
-                <td className="p-2 text-right">₹{order.grandTotal.toLocaleString()}</td>
-                <td className="p-2 text-center space-x-2">
-                  <button
-                    className="text-yellow-600 hover:text-yellow-700"
-                    title="Print Invoice"
-                  >
-                    <FaPrint />
-                  </button>
-                  <button
-                    className={`text-red-600 ${
-                      returnedOrderIds.includes(order._id)
-                        ? 'opacity-40 cursor-not-allowed'
-                        : 'hover:text-red-700'
-                    }`}
-                    onClick={() => !returnedOrderIds.includes(order._id) && handleReturn(order)}
-                    title="Return Order"
-                  >
-                    <FaUndoAlt />
-                  </button>
+            {filteredResults.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="text-center text-gray-500 py-4">
+                  No matches found
                 </td>
               </tr>
-            ))}
+            ) : (
+              filteredResults.map((order, idx) => (
+                <tr key={idx} className="border-t">
+                  <td className="p-2">{order.orderId || order._id}</td>
+                  <td className="p-2">{order.date} {order.time}</td>
+                  <td className="p-2">{order.customer.name}</td>
+                  <td className="p-2 text-center">{order.items.length}</td>
+                  <td className="p-2">{order.invoiceNumber}</td>
+                  <td className="p-2 text-right">₹{order.grandTotal.toLocaleString()}</td>
+                  <td className="p-2 text-center space-x-2">
+                    <button className="text-yellow-600 hover:text-yellow-700" title="Print Invoice">
+                      <FaPrint />
+                    </button>
+                    <button
+                      className={`text-red-600 ${
+                        returnedOrderIds.includes(order.orderId || order._id)
+                          ? 'opacity-40 cursor-not-allowed'
+                          : 'hover:text-red-700'
+                      }`}
+                      onClick={() =>
+                        !returnedOrderIds.includes(order.orderId || order._id) &&
+                        handleReturn(order)
+                      }
+                      title="Return Order"
+                    >
+                      <FaUndoAlt />
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
         <p className="text-sm text-gray-500 mt-4">
-          Showing {fuseResults.length} of {orders.length} orders
+          Showing {filteredResults.length} of {orders.length} orders
         </p>
       </div>
 
@@ -200,11 +211,11 @@ export default function OrderHistoryPage() {
                   <FaReceipt className="text-red-500" /> Return Info
                 </h3>
                 <p><strong>Return Date:</strong> {new Date().toLocaleDateString()}</p>
-                <p><strong>Order ID:</strong> {returnOrder._id}</p>
+                <p><strong>Order ID:</strong> {returnOrder.orderId || returnOrder._id}</p>
                 <p><strong>Invoice No:</strong> {returnOrder.invoiceNumber}</p>
                 <p className="font-bold text-lg pt-2"><strong>Grand Total:</strong> ₹{returnOrder.grandTotal.toLocaleString()}</p>
               </div>
-              <div className="bg-gray-50 border rounded p-4 space-y-2">
+                            <div className="bg-gray-50 border rounded p-4 space-y-2">
                 <h3 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
                   <FaUser className="text-blue-500" /> Customer Info
                 </h3>
@@ -229,7 +240,7 @@ export default function OrderHistoryPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Return Type</label>
                     <select
                       value={returnType}
-                                            onChange={(e) => setReturnType(e.target.value)}
+                      onChange={(e) => setReturnType(e.target.value)}
                       className="w-full border p-2 rounded"
                     >
                       <option value="">Select Type</option>
@@ -269,7 +280,7 @@ export default function OrderHistoryPage() {
               </table>
             </div>
 
-            {/* Confirm Button */}
+            {/* ✅ Confirm Button */}
             <button
               className="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded"
               onClick={async () => {
@@ -284,7 +295,7 @@ export default function OrderHistoryPage() {
                 }
 
                 const returnData = {
-                  orderId: returnOrder._id,
+                  orderId: returnOrder.orderId || returnOrder._id, // ✅ use formatted ID
                   invoiceNumber: returnOrder.invoiceNumber,
                   customer: returnOrder.customer,
                   items: returnOrder.items,

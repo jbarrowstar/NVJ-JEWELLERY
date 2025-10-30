@@ -9,8 +9,10 @@ import toast from 'react-hot-toast';
 import Fuse from 'fuse.js';
 
 type ReturnEntry = {
-  orderId: string;
-  date: string; // format: dd/mm/yyyy
+  _id?: string;
+  orderId?: string;
+  invoiceNumber?: string;
+  date: string;
   time: string;
   returnDate?: string;
   returnTime?: string;
@@ -46,8 +48,10 @@ export default function ReturnsPage() {
         if (data.success) {
           setReturns(data.returns);
           const fuseInstance = new Fuse<ReturnEntry>(data.returns, {
-            keys: ['orderId', 'customer.name'],
+            keys: ['orderId', 'invoiceNumber', 'customer.name'],
             threshold: 0.3,
+            ignoreLocation: true,
+            includeScore: true,
           });
           setFuse(fuseInstance);
         } else {
@@ -69,10 +73,17 @@ export default function ReturnsPage() {
     return normalized === selectedDate;
   });
 
-  const fuseResults =
-    searchTerm.trim() && fuse
-      ? fuse.search(searchTerm).map((r) => r.item).filter((r) => filteredByDate.includes(r))
-      : filteredByDate;
+  const filteredResults = (() => {
+    if (!fuse) return filteredByDate;
+    if (searchTerm.trim()) {
+      const matches = fuse
+        .search(searchTerm.trim())
+        .filter((r) => r.score !== undefined && r.score <= 0.1)
+        .map((r) => r.item);
+      return matches.filter((entry) => filteredByDate.includes(entry));
+    }
+    return filteredByDate;
+  })();
 
   return (
     <Layout>
@@ -86,7 +97,7 @@ export default function ReturnsPage() {
           <FaSearch className="text-gray-400 mr-2" />
           <input
             type="text"
-            placeholder="Search by Order ID or Customer"
+            placeholder="Search by Order ID, Invoice No, or Customer Name"
             className="w-full outline-none"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -111,6 +122,7 @@ export default function ReturnsPage() {
               <th className="p-2 text-left">Order ID</th>
               <th className="p-2 text-left">Return Date</th>
               <th className="p-2 text-left">Customer</th>
+              <th className="p-2 text-left">Invoice No</th>
               <th className="p-2 text-center">Items</th>
               <th className="p-2 text-left">Return Type</th>
               <th className="p-2 text-right">Amount</th>
@@ -118,38 +130,46 @@ export default function ReturnsPage() {
             </tr>
           </thead>
           <tbody>
-            {fuseResults.map((entry, idx) => (
-              <tr key={idx} className="border-t">
-                <td className="p-2">{entry.orderId || '—'}</td>
-                <td className="p-2">
-                  {entry.returnDate || entry.date || '—'}{' '}
-                  {entry.returnTime || entry.time || ''}
-                </td>
-                <td className="p-2">{entry.customer?.name || '—'}</td>
-                <td className="p-2 text-center">
-                  {entry.items?.length ?? '—'} item{entry.items?.length > 1 ? 's' : ''}
-                </td>
-                <td className="p-2">{entry.returnType || '—'}</td>
-                <td className="p-2 text-right">
-                  ₹{entry.grandTotal !== undefined ? entry.grandTotal.toLocaleString() : '—'}
-                </td>
-                <td className="p-2 text-center">
-                  <span className={`text-xs font-semibold px-2 py-1 rounded ${
-                    entry.status === 'Completed'
-                      ? 'bg-green-100 text-green-700'
-                      : entry.status === 'Pending'
-                      ? 'bg-yellow-100 text-yellow-700'
-                      : 'bg-gray-100 text-gray-600'
-                  }`}>
-                    {entry.status || '—'}
-                  </span>
+            {filteredResults.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="text-center text-gray-500 py-4">
+                  No matches found
                 </td>
               </tr>
-            ))}
+            ) : (
+              filteredResults.map((entry, idx) => (
+                <tr key={idx} className="border-t">
+                  <td className="p-2">{entry.orderId || entry._id || '—'}</td>
+                  <td className="p-2">
+                    {entry.returnDate || entry.date || '—'} {entry.returnTime || entry.time || ''}
+                  </td>
+                  <td className="p-2">{entry.customer?.name || '—'}</td>
+                  <td className="p-2">{entry.invoiceNumber || '—'}</td>
+                  <td className="p-2 text-center">
+                    {entry.items?.length ?? '—'} item{entry.items?.length > 1 ? 's' : ''}
+                  </td>
+                  <td className="p-2">{entry.returnType || '—'}</td>
+                  <td className="p-2 text-right">
+                    ₹{entry.grandTotal !== undefined ? entry.grandTotal.toLocaleString() : '—'}
+                  </td>
+                  <td className="p-2 text-center">
+                    <span className={`text-xs font-semibold px-2 py-1 rounded ${
+                      entry.status === 'Completed'
+                        ? 'bg-green-100 text-green-700'
+                        : entry.status === 'Pending'
+                        ? 'bg-yellow-100 text-yellow-700'
+                        : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {entry.status || '—'}
+                    </span>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
         <p className="text-sm text-gray-500 mt-4">
-          Showing {fuseResults.length} of {returns.length} returns
+          Showing {filteredResults.length} of {returns.length} returns
         </p>
       </div>
     </Layout>
