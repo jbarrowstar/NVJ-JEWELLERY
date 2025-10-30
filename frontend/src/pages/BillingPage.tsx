@@ -1,4 +1,4 @@
-import { useState, useEffect, type JSX } from 'react';
+import { useState, useEffect, type JSX, useCallback } from 'react';
 import Layout from '../components/Layout';
 import { fetchProducts } from '../services/productService';
 import { saveCustomer } from '../services/customerService';
@@ -9,6 +9,12 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 import { FaShoppingCart, FaUser, FaPercentage, FaCalculator, FaTimes } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import Fuse from 'fuse.js';
+import InvoiceContent from '../components/InvoiceContent';
+import { useRef } from 'react';
+import { useReactToPrint } from 'react-to-print';
+import html2pdf from 'html2pdf.js';
+
+
 
 function SectionHeader({ icon, title }: { icon: JSX.Element; title: string }) {
   return (
@@ -256,6 +262,55 @@ useEffect(() => {
     }
 
   };
+
+const invoiceRef = useRef<HTMLDivElement>(null);
+
+const handlePrint = useCallback(
+  useReactToPrint({
+    contentRef: invoiceRef,
+    documentTitle: `Invoice-${lastOrder?.invoiceNumber || 'Nirvaha'}`,
+    onAfterPrint: () => {
+      console.log('Print completed');
+      // Optional: reset modal or state here if needed
+    },
+  }),
+  [lastOrder] // ✅ ensures the print function updates when the order changes
+);
+
+
+const handleDownloadPDF = () => {
+  if (!invoiceRef.current) return;
+
+  const element = invoiceRef.current.cloneNode(true) as HTMLElement;
+
+  // Remove unsupported color functions
+  element.querySelectorAll('*').forEach((el) => {
+    const style = window.getComputedStyle(el);
+    if (style.color.includes('oklch') || style.backgroundColor.includes('oklch')) {
+      (el as HTMLElement).style.color = '#000';
+      (el as HTMLElement).style.backgroundColor = '#fff';
+    }
+  });
+
+  html2pdf()
+    .set({
+      margin: [10, 10, 10, 10],
+      filename: `Invoice-${lastOrder?.invoiceNumber || 'Nirvaha'}.pdf`,
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      },
+      jsPDF: {
+        unit: 'mm',
+        format: 'a4',
+        orientation: 'portrait',
+      },
+    })
+    .from(element)
+    .save();
+};
+
 
 
     return (
@@ -636,6 +691,8 @@ useEffect(() => {
         <FaTimes />
       </button>
       <h2 className="text-xl font-semibold mb-6 text-center">Order Details – Invoice</h2>
+
+      {/* ✅ Your styled invoice preview */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div className="bg-gray-50 border rounded p-4 space-y-2">
           <h3 className="font-semibold text-gray-800 mb-2">🛒 Order Info</h3>
@@ -645,16 +702,14 @@ useEffect(() => {
           <p className="font-bold text-lg pt-2"><strong>Grand Total:</strong> ₹{grandTotal.toLocaleString()}</p>
         </div>
         <div className="bg-gray-50 border rounded p-4 space-y-2">
-                    <h3 className="font-semibold text-gray-800 mb-2">👤 Customer Info</h3>
+          <h3 className="font-semibold text-gray-800 mb-2">👤 Customer Info</h3>
           <p><strong>Name:</strong> {lastOrder?.customer?.name || '—'}</p>
           <p><strong>Phone:</strong> {lastOrder?.customer?.phone || '—'}</p>
           <p><strong>Email:</strong> {lastOrder?.customer?.email || '—'}</p>
-
         </div>
       </div>
 
-      {/* Order Items Table */}
-      <div>
+      <div className="mb-6">
         <h3 className="font-semibold text-gray-800 mb-2">📦 Order Items</h3>
         <table className="w-full text-sm border">
           <thead className="bg-gray-100">
@@ -678,8 +733,7 @@ useEffect(() => {
         </table>
       </div>
 
-      {/* Payment Summary */}
-      <div className="bg-gray-50 border rounded p-4 space-y-2 text-sm mt-6">
+      <div className="bg-gray-50 border rounded p-4 space-y-2 text-sm">
         <h3 className="font-semibold text-gray-800 mb-2">🧾 Payment Summary</h3>
         <div className="flex justify-between">
           <span>Subtotal</span>
@@ -699,10 +753,30 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* Action Buttons */}
+      {/* ✅ Hidden printable layout */}
+      <div className="hidden">
+        <InvoiceContent
+          ref={invoiceRef}
+          order={lastOrder}
+          subtotal={subtotal}
+          appliedDiscount={appliedDiscount}
+          appliedTaxRate={appliedTaxRate}
+          taxAmount={taxAmount}
+          grandTotal={grandTotal}
+        />
+      </div>
+
+      {/* ✅ Action Buttons */}
       <div className="flex justify-end gap-4 mt-6">
-        <button className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600">Download Invoice</button>
-        <button className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600">Print Invoice</button>
+        <button onClick={handleDownloadPDF} className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600">
+          Download Invoice
+        </button>
+        <button
+          onClick={handlePrint}
+          className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+        >
+          Print Invoice
+        </button>
         <button
           onClick={() => {
             setCart([]);
@@ -719,6 +793,7 @@ useEffect(() => {
     </div>
   </div>
 )}
+
 
 {/* Scanner Modal */}
 {showQRScanner && (

@@ -9,10 +9,23 @@ const InvoiceContent = React.forwardRef<HTMLDivElement, {
   grandTotal: number;
 }>(({ order, subtotal, appliedDiscount, appliedTaxRate, taxAmount, grandTotal }, ref) => {
   return (
-    <div ref={ref} className="p-6 text-sm bg-white max-w-3xl mx-auto">
-      <h2 className="text-xl font-bold text-center mb-4">🧾 Nirvaha Jewellers – Invoice</h2>
+    <div
+      ref={ref}
+      style={{
+        width: '210mm',
+        minHeight: '297mm',
+        padding: '20mm',
+        boxSizing: 'border-box',
+        fontFamily: 'Arial, sans-serif',
+        backgroundColor: '#fff',
+        color: '#000',
+      }}
+    >
+      <h2 style={{ fontSize: '20px', fontWeight: 'bold', textAlign: 'center', marginBottom: '16px' }}>
+        🧾 Nirvaha Jewellers – Invoice
+      </h2>
 
-      <div className="grid grid-cols-2 gap-4 mb-6">
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
         <div>
           <p><strong>Name:</strong> {order?.customer?.name || '—'}</p>
           <p><strong>Phone:</strong> {order?.customer?.phone || '—'}</p>
@@ -26,38 +39,44 @@ const InvoiceContent = React.forwardRef<HTMLDivElement, {
         </div>
       </div>
 
-      <table className="w-full border text-sm mb-6">
-        <thead className="bg-gray-100">
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', marginBottom: '24px' }}>
+        <thead style={{ backgroundColor: '#f3f3f3' }}>
           <tr>
-            <th className="p-2 text-left">Product</th>
-            <th className="p-2 text-right">Price</th>
-            <th className="p-2 text-center">Qty</th>
-            <th className="p-2 text-right">Subtotal</th>
+            <th style={{ padding: '8px', textAlign: 'left', border: '1px solid #ccc' }}>Product</th>
+            <th style={{ padding: '8px', textAlign: 'right', border: '1px solid #ccc' }}>Price</th>
+            <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #ccc' }}>Qty</th>
+            <th style={{ padding: '8px', textAlign: 'right', border: '1px solid #ccc' }}>Subtotal</th>
           </tr>
         </thead>
         <tbody>
           {order?.items?.map((item: any, idx: number) => (
-            <tr key={idx} className="border-t">
-              <td className="p-2">{item.name}</td>
-              <td className="p-2 text-right">₹{item.price.toLocaleString()}</td>
-              <td className="p-2 text-center">{item.qty}</td>
-              <td className="p-2 text-right">₹{(item.price * item.qty).toLocaleString()}</td>
+            <tr key={idx}>
+              <td style={{ padding: '8px', border: '1px solid #ccc' }}>{item.name}</td>
+              <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ccc' }}>
+                ₹{item.price.toLocaleString()}
+              </td>
+              <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #ccc' }}>{item.qty}</td>
+              <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ccc' }}>
+                ₹{(item.price * item.qty).toLocaleString()}
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      <div className="space-y-1 text-right">
+      <div style={{ textAlign: 'right', fontSize: '14px', lineHeight: '1.6' }}>
         <p><strong>Subtotal:</strong> ₹{subtotal.toLocaleString()}</p>
         <p><strong>Discount:</strong> - ₹{appliedDiscount.toLocaleString()}</p>
         <p><strong>Tax ({appliedTaxRate}%):</strong> ₹{taxAmount.toLocaleString()}</p>
-        <p className="text-lg font-bold pt-2 border-t"><strong>Grand Total:</strong> ₹{grandTotal.toLocaleString()}</p>
+        <p style={{ fontSize: '16px', fontWeight: 'bold', paddingTop: '8px', borderTop: '1px solid #ccc' }}>
+          <strong>Grand Total:</strong> ₹{grandTotal.toLocaleString()}
+        </p>
       </div>
 
-      <div className="mt-6 text-xs text-gray-600">
+      <div style={{ marginTop: '32px', fontSize: '12px', color: '#555' }}>
         <p>Goods once sold will not be taken back.</p>
         <p>Subject to jurisdiction only.</p>
-        <p className="mt-4 text-right font-semibold">— Nirvaha Jewellers</p>
+        <p style={{ marginTop: '16px', textAlign: 'right', fontWeight: 'bold' }}>— Nirvaha Jewellers</p>
       </div>
     </div>
   );
