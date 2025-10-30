@@ -1,7 +1,8 @@
 const mongoose = require('mongoose');
 
 const orderSchema = new mongoose.Schema({
-  invoiceNumber: String,
+  orderId: { type: String, required: true, unique: true },         // ✅ Internal tracking
+  invoiceNumber: { type: String, required: true, unique: true },   // ✅ GST-compliant
   customer: {
     name: String,
     phone: String,
@@ -22,7 +23,7 @@ const orderSchema = new mongoose.Schema({
   grandTotal: Number,
   date: String,
   time: String,
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
 });
 
 module.exports = mongoose.model('Order', orderSchema);

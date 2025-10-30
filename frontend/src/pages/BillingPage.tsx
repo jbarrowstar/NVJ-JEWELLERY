@@ -223,10 +223,7 @@ useEffect(() => {
   };
 
   const handleConfirmPayment = async () => {
-    const invoiceNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-
     const order = {
-      invoiceNumber,
       customer: {
         name: customerName,
         phone: customerPhone,
@@ -247,15 +244,17 @@ useEffect(() => {
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
+
     const res = await saveOrder(order);
     if (res.success) {
-      toast.success('Order saved!');
-      setLastOrder(order); // ✅ store full order including email
+      toast.success(`Order saved! No: ${res.order.orderId}`);
+      setLastOrder(res.order); // ✅ This now includes orderId and invoiceNumber
       setShowPaymentModal(false);
       setShowInvoiceModal(true);
     } else {
       toast.error('Failed to save order');
     }
+
   };
 
 
@@ -640,7 +639,7 @@ useEffect(() => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div className="bg-gray-50 border rounded p-4 space-y-2">
           <h3 className="font-semibold text-gray-800 mb-2">🛒 Order Info</h3>
-          <p><strong>Invoice Date:</strong> {new Date().toLocaleDateString()}</p>
+          <p><strong>Order ID:</strong> {lastOrder?.orderId || '—'}</p>
           <p><strong>Invoice No:</strong> {lastOrder?.invoiceNumber || '—'}</p>
           <p><strong>Payment Mode:</strong> {selectedPaymentMethod || '—'}</p>
           <p className="font-bold text-lg pt-2"><strong>Grand Total:</strong> ₹{grandTotal.toLocaleString()}</p>

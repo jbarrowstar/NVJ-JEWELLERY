@@ -1,11 +1,32 @@
 const express = require('express');
 const router = express.Router();
 const Order = require('../models/Order');
+const Counter = require('../models/Counter');
+
+// Helper to generate formatted IDs
+async function getNextFormattedNumber(prefix, separator = '/') {
+  const counter = await Counter.findOneAndUpdate(
+    { name: prefix },
+    { $inc: { value: 1 } },
+    { new: true, upsert: true }
+  );
+  const year = new Date().getFullYear();
+  const padded = String(counter.value).padStart(4, '0');
+  return `${prefix}${separator}${year}${separator}${padded}`;
+}
 
 // POST /api/orders
 router.post('/', async (req, res) => {
   try {
-    const newOrder = new Order(req.body);
+    const orderId = await getNextFormattedNumber('ORD', '-');       // e.g. ORD-2025-0001
+    const invoiceNumber = await getNextFormattedNumber('INV', '/'); // e.g. INV/2025/0001
+
+    const newOrder = new Order({
+      ...req.body,
+      orderId,
+      invoiceNumber,
+    });
+
     await newOrder.save();
     res.json({ success: true, order: newOrder });
   } catch (err) {
@@ -24,6 +45,5 @@ router.get('/', async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
-
 
 module.exports = router;
