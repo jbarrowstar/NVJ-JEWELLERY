@@ -14,4 +14,16 @@ router.post('/', async (req, res) => {
   }
 });
 
+// GET /api/orders
+router.get('/', async (req, res) => {
+  try {
+    const orders = await Order.find().sort({ createdAt: -1 });
+    res.json({ success: true, orders });
+  } catch (err) {
+    console.error('Order fetch error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+
 module.exports = router;

@@ -126,7 +126,7 @@ useEffect(() => {
 
     scanner.render(
       (decodedText) => {
-        setSearchTerm(decodedText.trim()); // ✅ just populate searchTerm
+        setSearchTerm(decodedText.trim()); //
         setShowQRScanner(false);
         toast.success(`Scanned: ${decodedText}`);
       },
@@ -515,8 +515,8 @@ useEffect(() => {
       <h2 className="text-lg font-semibold mb-4 text-center">Add New Customer</h2>
       <div className="space-y-3">
         <input type="text" placeholder="Name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="w-full border p-2 rounded" />
-        <input type="email" placeholder="Email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} className="w-full border p-2 rounded" />
         <input type="tel" placeholder="Phone" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className="w-full border p-2 rounded" />
+        <input type="email" placeholder="Email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} className="w-full border p-2 rounded" />
         <textarea placeholder="Notes" value={customerNotes} onChange={(e) => setCustomerNotes(e.target.value)} className="w-full border p-2 rounded resize-none" rows={3} />
       </div>
       <div className="flex justify-end gap-4 mt-6">
