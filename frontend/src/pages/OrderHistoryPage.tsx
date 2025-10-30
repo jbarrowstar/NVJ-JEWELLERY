@@ -1,5 +1,5 @@
 import Layout from '../components/Layout';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   FaSearch,
   FaCalendarAlt,
@@ -13,6 +13,8 @@ import {
 import toast from 'react-hot-toast';
 import Fuse from 'fuse.js';
 import { checkReturnExists } from '../services/returnService';
+import { useReactToPrint } from 'react-to-print';
+import InvoiceContent from '../components/InvoiceContent';
 
 type Order = {
   _id: string;
@@ -105,7 +107,20 @@ export default function OrderHistoryPage() {
     }
   };
 
+  const [printOrder, setPrintOrder] = useState<Order | null>(null);
+  const printRef = useRef<HTMLDivElement>(null);
+
+  const handlePrint = useCallback(
+    useReactToPrint({
+      contentRef: printRef,
+      documentTitle: `Invoice-${printOrder?.invoiceNumber || 'Nirvaha'}`,
+      onAfterPrint: () => toast.success('Print completed'),
+    }),
+    [printOrder]
+  );
+
   return (
+    <>
     <Layout>
       <h2 className="text-xl font-bold mb-6 text-[#CC9200]">Order History</h2>
 
@@ -163,9 +178,17 @@ export default function OrderHistoryPage() {
                   <td className="p-2">{order.invoiceNumber}</td>
                   <td className="p-2 text-right">₹{order.grandTotal.toLocaleString()}</td>
                   <td className="p-2 text-center space-x-2">
-                    <button className="text-yellow-600 hover:text-yellow-700" title="Print Invoice">
+                    <button
+                      className="text-yellow-600 hover:text-yellow-700"
+                      title="Print Invoice"
+                      onClick={() => {
+                        setPrintOrder(order); // ✅ use already-loaded order
+                        setTimeout(() => handlePrint(), 300);
+                      }}
+                    >
                       <FaPrint />
                     </button>
+
                     <button
                       className={`text-red-600 ${
                         returnedOrderIds.includes(order.orderId || order._id)
@@ -339,5 +362,21 @@ export default function OrderHistoryPage() {
         </div>
       )}
     </Layout>
+
+    {printOrder && (
+      <div className="hidden">
+        <InvoiceContent
+          ref={printRef}
+          order={printOrder}
+          subtotal={printOrder.items.reduce((sum, item) => sum + item.price * item.qty, 0)}
+          appliedDiscount={0}
+          appliedTaxRate={0}
+          taxAmount={0}
+          grandTotal={printOrder.grandTotal}
+        />
+      </div>
+    )}
+
+    </>
   );
 }
