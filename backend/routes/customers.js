@@ -25,4 +25,31 @@ router.post('/', async (req, res) => {
   }
 });
 
+// UPDATE customer
+router.put('/:id', async (req, res) => {
+  try {
+    const updated = await Customer.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true,
+    });
+    if (!updated) return res.status(404).json({ success: false, message: 'Customer not found' });
+    res.json({ success: true, customer: updated });
+  } catch (err) {
+    console.error('Customer update error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// DELETE customer
+router.delete('/:id', async (req, res) => {
+  try {
+    const deleted = await Customer.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ success: false, message: 'Customer not found' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Customer delete error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 module.exports = router;
