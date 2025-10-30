@@ -104,7 +104,7 @@ export default function OrderHistoryPage() {
 
   return (
     <Layout>
-      <h2 className="text-xl font-bold mb-6 text-yellow-700">Order History</h2>
+      <h2 className="text-xl font-bold mb-6 text-[#CC9200]">Order History</h2>
 
       {/* 🔍 Search & Filter */}
       <div className="flex flex-col md:flex-row gap-4 mb-6">

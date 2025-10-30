@@ -59,7 +59,7 @@ export default function CustomerPage() {
 
   return (
     <Layout>
-      <h2 className="text-xl font-bold mb-6 text-blue-700 flex items-center gap-2">
+      <h2 className="text-xl font-bold mb-6 text-[#CC9200] flex items-center gap-2">
         <FaUserPlus /> Customer Management
       </h2>
 
@@ -233,43 +233,53 @@ export default function CustomerPage() {
         </div>
       )}
 
-      {/* 🗑️ Delete Confirmation Modal */}
       {confirmDeleteId && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center">
-          <div className="bg-white rounded shadow-lg p-6 w-full max-w-sm text-sm">
-                        <h3 className="text-lg font-semibold mb-4 text-center text-red-600">Confirm Delete</h3>
-            <p className="text-center text-gray-700 mb-6">
-              Are you sure you want to delete this customer?
-            </p>
-            <div className="flex justify-center gap-4">
-              <button
-                onClick={() => setConfirmDeleteId(null)}
-                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={async () => {
-                  const res = await fetch(`http://localhost:3001/api/customers/${confirmDeleteId}`, {
-                    method: 'DELETE',
-                  });
-                  const data = await res.json();
-                  if (data.success) {
-                    toast.success('Customer deleted');
-                    setCustomers((prev) => prev.filter((c) => c._id !== confirmDeleteId));
-                    setConfirmDeleteId(null);
-                  } else {
-                    toast.error('Delete failed');
-                  }
-                }}
-                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+  <div className="fixed inset-0 bg-gray-400 bg-opacity-20 z-40 flex items-center justify-center">
+    <div className="bg-white rounded shadow-lg p-6 w-full max-w-md text-sm z-50 relative">
+      <button
+        onClick={() => setConfirmDeleteId(null)}
+        className="absolute top-4 right-4 text-gray-500 hover:text-red-500 text-xl"
+        aria-label="Close"
+      >
+        <FaTimes />
+      </button>
+
+      <h2 className="text-lg font-semibold mb-4 text-center text-red-600">Delete Customer</h2>
+
+      <p className="text-center text-gray-700 mb-6">
+        Are you sure you want to permanently delete this customer?
+      </p>
+
+      <div className="flex justify-center gap-4">
+        <button
+          onClick={() => setConfirmDeleteId(null)}
+          className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={async () => {
+            const res = await fetch(`http://localhost:3001/api/customers/${confirmDeleteId}`, {
+              method: 'DELETE',
+            });
+            const data = await res.json();
+            if (data.success) {
+              toast.success('Customer deleted');
+              setCustomers((prev) => prev.filter((c) => c._id !== confirmDeleteId));
+              setConfirmDeleteId(null);
+            } else {
+              toast.error('Delete failed');
+            }
+          }}
+          className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+        >
+          Confirm Delete
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
     </Layout>
   );
 }
