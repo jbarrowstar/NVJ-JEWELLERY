@@ -68,8 +68,8 @@ const InvoiceContent = React.forwardRef<HTMLDivElement, {
       {/* Summary */}
       <div className="text-right text-sm space-y-1 mb-6">
         <p><strong>Subtotal:</strong> ₹{subtotal.toLocaleString()}</p>
-        <p><strong>Discount:</strong> - ₹{order.discount.toLocaleString()}</p>
-        <p><strong>Tax:</strong> ₹{order.tax.toLocaleString()}</p>
+        <p><strong>Discount:</strong> - ₹{order.discount?.toLocaleString() || '0'}</p>
+        <p><strong>Tax:</strong> ₹{order.tax?.toLocaleString() || '0'}</p>
         <p className="text-lg font-bold text-[#CC9200] pt-2 border-t">
           Grand Total: ₹{grandTotal.toLocaleString()}
         </p>

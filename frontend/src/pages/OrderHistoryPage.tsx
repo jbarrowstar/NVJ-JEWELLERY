@@ -33,6 +33,8 @@ type Order = {
     qty: number;
     sku: string;
   }[];
+  discount?: number;
+  tax?: number;
   grandTotal: number;
 };
 
@@ -108,16 +110,21 @@ export default function OrderHistoryPage() {
   };
 
   const [printOrder, setPrintOrder] = useState<Order | null>(null);
-  const printRef = useRef<HTMLDivElement>(null);
+  const invoiceRef = useRef<HTMLDivElement>(null);
 
   const handlePrint = useCallback(
     useReactToPrint({
-      contentRef: printRef,
+      contentRef: invoiceRef,
       documentTitle: `Invoice-${printOrder?.invoiceNumber || 'Nirvaha'}`,
       onAfterPrint: () => toast.success('Print completed'),
     }),
     [printOrder]
   );
+
+  const getSubtotal = (order: Order | null) => {
+    if (!order) return 0;
+    return order.items.reduce((sum, item) => sum + item.price * item.qty, 0);
+  };
 
   return (
     <>
@@ -363,19 +370,17 @@ export default function OrderHistoryPage() {
       )}
     </Layout>
 
-    {printOrder && (
-      <div className="hidden">
-        <InvoiceContent
-          ref={printRef}
-          order={printOrder}
-          subtotal={printOrder.items.reduce((sum, item) => sum + item.price * item.qty, 0)}
-          appliedDiscount={0}
-          appliedTaxRate={0}
-          taxAmount={0}
-          grandTotal={printOrder.grandTotal}
-        />
-      </div>
-    )}
+    {/* ✅ Hidden printable layout */}
+      {printOrder && (
+        <div className="hidden">
+          <InvoiceContent
+            ref={invoiceRef}
+            order={printOrder}
+            subtotal={getSubtotal(printOrder)}
+            grandTotal={printOrder.grandTotal}
+          />
+        </div>
+      )}
 
     </>
   );

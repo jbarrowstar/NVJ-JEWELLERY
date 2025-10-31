@@ -749,9 +749,6 @@ export default function BillingPage() {
           ref={invoiceRef}
           order={lastOrder}
           subtotal={subtotal}
-          appliedDiscount={appliedDiscount}
-          appliedTaxRate={appliedTaxRate}
-          taxAmount={taxAmount}
           grandTotal={grandTotal}
         />
       </div>
