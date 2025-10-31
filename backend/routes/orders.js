@@ -18,8 +18,8 @@ async function getNextFormattedNumber(prefix, separator = '/') {
 // POST /api/orders
 router.post('/', async (req, res) => {
   try {
-    const orderId = await getNextFormattedNumber('ORD', '-');       // e.g. ORD-2025-0001
-    const invoiceNumber = await getNextFormattedNumber('INV', '/'); // e.g. INV/2025/0001
+    const orderId = await getNextFormattedNumber('ORD', '-');
+    const invoiceNumber = await getNextFormattedNumber('INV', '/');
 
     const newOrder = new Order({
       ...req.body,

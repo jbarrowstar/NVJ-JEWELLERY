@@ -1,8 +1,8 @@
 const mongoose = require('mongoose');
 
 const orderSchema = new mongoose.Schema({
-  orderId: { type: String, required: true, unique: true },         // ✅ Internal tracking
-  invoiceNumber: { type: String, required: true, unique: true },   // ✅ GST-compliant
+  orderId: { type: String, required: true, unique: true },
+  invoiceNumber: { type: String, required: true, unique: true },
   customer: {
     name: String,
     phone: String,

@@ -4,11 +4,8 @@ import logo from '../assets/logo.png';
 const InvoiceContent = React.forwardRef<HTMLDivElement, {
   order: any;
   subtotal: number;
-  appliedDiscount: number;
-  appliedTaxRate: number;
-  taxAmount: number;
   grandTotal: number;
-}>(({ order, subtotal, appliedDiscount, appliedTaxRate, taxAmount, grandTotal }, ref) => {
+}>(({ order, subtotal, grandTotal }, ref) => {
   return (
     <div
       ref={ref}
@@ -48,12 +45,9 @@ const InvoiceContent = React.forwardRef<HTMLDivElement, {
           <tr>
             <th className="border p-2 text-left">Sr.</th>
             <th className="border p-2 text-left">Item Description</th>
-            <th className="border p-2 text-center">HSN/SAC</th>
             <th className="border p-2 text-center">Qty</th>
             <th className="border p-2 text-center">Unit</th>
             <th className="border p-2 text-right">List Price</th>
-            <th className="border p-2 text-right">Disc.</th>
-            <th className="border p-2 text-right">Tax %</th>
             <th className="border p-2 text-right">Amount (₹)</th>
           </tr>
         </thead>
@@ -62,12 +56,9 @@ const InvoiceContent = React.forwardRef<HTMLDivElement, {
             <tr key={idx}>
               <td className="border p-2">{idx + 1}</td>
               <td className="border p-2">{item.name}</td>
-              <td className="border p-2 text-center">9983</td>
               <td className="border p-2 text-center">{item.qty}</td>
               <td className="border p-2 text-center">N.A.</td>
               <td className="border p-2 text-right">₹{item.price.toLocaleString()}</td>
-              <td className="border p-2 text-right">—</td>
-              <td className="border p-2 text-right">{appliedTaxRate}%</td>
               <td className="border p-2 text-right">₹{(item.price * item.qty).toLocaleString()}</td>
             </tr>
           ))}
@@ -77,8 +68,8 @@ const InvoiceContent = React.forwardRef<HTMLDivElement, {
       {/* Summary */}
       <div className="text-right text-sm space-y-1 mb-6">
         <p><strong>Subtotal:</strong> ₹{subtotal.toLocaleString()}</p>
-        <p><strong>Discount:</strong> - ₹{appliedDiscount.toLocaleString()}</p>
-        <p><strong>Tax ({appliedTaxRate}%):</strong> ₹{taxAmount.toLocaleString()}</p>
+        <p><strong>Discount:</strong> - ₹{order.discount.toLocaleString()}</p>
+        <p><strong>Tax:</strong> ₹{order.tax.toLocaleString()}</p>
         <p className="text-lg font-bold text-[#CC9200] pt-2 border-t">
           Grand Total: ₹{grandTotal.toLocaleString()}
         </p>

@@ -22,214 +22,222 @@ function SectionHeader({ icon, title }: { icon: JSX.Element; title: string }) {
 }
 
 export default function BillingPage() {
-  const [cart, setCart] = useState<{ name: string; price: number; qty: number; sku: string }[]>([]);
-  const [suggestedItems, setSuggestedItems] = useState<
-    { name: string; price: number; image: string; sku: string }[]
-  >([]);
-  const [filteredItems, setFilteredItems] = useState<
-    { name: string; price: number; image: string; sku: string }[]
-  >([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [productFuse, setProductFuse] = useState<Fuse<any> | null>(null);
+        const [cart, setCart] = useState<{ name: string; price: number; qty: number; sku: string }[]>([]);
+        const [suggestedItems, setSuggestedItems] = useState<
+          { name: string; price: number; image: string; sku: string }[]
+        >([]);
+        const [filteredItems, setFilteredItems] = useState<
+          { name: string; price: number; image: string; sku: string }[]
+        >([]);
+        const [searchTerm, setSearchTerm] = useState('');
+        const [productFuse, setProductFuse] = useState<Fuse<any> | null>(null);
 
-  const [discountType, setDiscountType] = useState<'₹' | '%'>('₹');
-  const [discountValue, setDiscountValue] = useState(5000);
-  const [appliedDiscount, setAppliedDiscount] = useState(0);
+        const [discountType, setDiscountType] = useState<'₹' | '%'>('₹');
+        const [discountValue, setDiscountValue] = useState(0);
+        const [appliedDiscount, setAppliedDiscount] = useState(0);
 
-  const [taxRate, setTaxRate] = useState(5);
-  const [appliedTaxRate, setAppliedTaxRate] = useState(5);
+        const [taxRate, setTaxRate] = useState(5);
+        const [appliedTaxRate, setAppliedTaxRate] = useState(5);
 
-  const [showCustomerModal, setShowCustomerModal] = useState(false);
-  const [customerName, setCustomerName] = useState('');
-  const [customerEmail, setCustomerEmail] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [customerNotes, setCustomerNotes] = useState('');
+        const [showCustomerModal, setShowCustomerModal] = useState(false);
+        const [customerName, setCustomerName] = useState('');
+        const [customerEmail, setCustomerEmail] = useState('');
+        const [customerPhone, setCustomerPhone] = useState('');
+        const [customerNotes, setCustomerNotes] = useState('');
 
-  const [showSelectCustomerModal, setShowSelectCustomerModal] = useState(false);
-  const [customerList, setCustomerList] = useState<{ name: string; phone: string; email?: string }[]>([]);
-  const [filteredCustomers, setFilteredCustomers] = useState<{ name: string; phone: string; email?: string }[]>([]);
+        const [showSelectCustomerModal, setShowSelectCustomerModal] = useState(false);
+        const [customerList, setCustomerList] = useState<{ name: string; phone: string; email?: string }[]>([]);
+        const [filteredCustomers, setFilteredCustomers] = useState<{ name: string; phone: string; email?: string }[]>([]);
 
-  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
-  const [customerFuse, setCustomerFuse] = useState<Fuse<any> | null>(null);
+        const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+        const [customerFuse, setCustomerFuse] = useState<Fuse<any> | null>(null);
 
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'Cash' | 'Card' | 'UPI' | ''>('');
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+        const [showPaymentModal, setShowPaymentModal] = useState(false);
+        const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'Cash' | 'Card' | 'UPI' | ''>('');
+        const [showInvoiceModal, setShowInvoiceModal] = useState(false);
 
-  const [lastOrder, setLastOrder] = useState<any>(null);
+        const [lastOrder, setLastOrder] = useState<any>(null);
 
-  useEffect(() => {
-    fetchProducts()
-      .then((items) => {
-        setSuggestedItems(items);
-        setFilteredItems(items);
-        const fuse = new Fuse(items, {
-          keys: ['name', 'sku'],
-          threshold: 0.3,
-        });
-        setProductFuse(fuse);
-      })
-      .catch((err) => console.error('Product fetch error:', err));
-  }, []);
-
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (searchTerm.trim() && productFuse) {
-        const results = productFuse.search(searchTerm);
-        setFilteredItems(results.map((r) => r.item));
-      } else {
-        setFilteredItems(suggestedItems);
-      }
-    }, 200);
-    return () => clearTimeout(timeout);
-  }, [searchTerm, suggestedItems, productFuse]);
-
-  useEffect(() => {
-    if (showSelectCustomerModal) {
-      fetch('http://localhost:3001/api/customers')
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success) {
-            setCustomerList(data.customers);
-            setFilteredCustomers(data.customers);
-            const fuse = new Fuse(data.customers, {
-              keys: ['name', 'phone'],
+      useEffect(() => {
+        fetchProducts()
+          .then((items) => {
+            setSuggestedItems(items);
+            setFilteredItems(items);
+            const fuse = new Fuse(items, {
+              keys: ['name', 'sku'],
               threshold: 0.3,
             });
-            setCustomerFuse(fuse);
+            setProductFuse(fuse);
+          })
+          .catch((err) => console.error('Product fetch error:', err));
+      }, []);
+
+      useEffect(() => {
+        const timeout = setTimeout(() => {
+          if (searchTerm.trim() && productFuse) {
+            const results = productFuse.search(searchTerm);
+            setFilteredItems(results.map((r) => r.item));
+          } else {
+            setFilteredItems(suggestedItems);
           }
-        })
-        .catch((err) => console.error('Customer fetch error:', err));
-    }
-  }, [showSelectCustomerModal]);
+        }, 200);
+        return () => clearTimeout(timeout);
+      }, [searchTerm, suggestedItems, productFuse]);
 
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (customerSearchTerm.trim() && customerFuse) {
-        const results = customerFuse.search(customerSearchTerm);
-        setFilteredCustomers(results.map((r) => r.item));
-      } else {
-        setFilteredCustomers(customerList);
-      }
-    }, 200);
-    return () => clearTimeout(timeout);
-  }, [customerSearchTerm, customerList, customerFuse]);
+      useEffect(() => {
+        if (showSelectCustomerModal) {
+          fetch('http://localhost:3001/api/customers')
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.success) {
+                setCustomerList(data.customers);
+                setFilteredCustomers(data.customers);
+                const fuse = new Fuse(data.customers, {
+                  keys: ['name', 'phone'],
+                  threshold: 0.3,
+                });
+                setCustomerFuse(fuse);
+              }
+            })
+            .catch((err) => console.error('Customer fetch error:', err));
+        }
+      }, [showSelectCustomerModal]);
 
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
-  const taxAmount = Math.round((subtotal * appliedTaxRate) / 100);
-  const grandTotal = subtotal + taxAmount - appliedDiscount;
+      useEffect(() => {
+        const timeout = setTimeout(() => {
+          if (customerSearchTerm.trim() && customerFuse) {
+            const results = customerFuse.search(customerSearchTerm);
+            setFilteredCustomers(results.map((r) => r.item));
+          } else {
+            setFilteredCustomers(customerList);
+          }
+        }, 200);
+        return () => clearTimeout(timeout);
+      }, [customerSearchTerm, customerList, customerFuse]);
 
-  const handleAddItem = (name: string, price: number, sku: string) => {
-    setCart((prevCart) => {
-      const existingItem = prevCart.find((item) => item.sku === sku);
+      const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+      const taxAmount = Math.round((subtotal * appliedTaxRate) / 100);
+      const grandTotal = subtotal + taxAmount - appliedDiscount;
 
-      if (existingItem) {
-        // Return a new array with updated quantity
-        return prevCart.map((item) =>
-          item.sku === sku ? { ...item, qty: item.qty + 1 } : item
-        );
-      } else {
-        // Add new item
-        return [...prevCart, { name, price, qty: 1, sku }];
-      }
-    });
+      const handleAddItem = (name: string, price: number, sku: string) => {
+        setCart((prevCart) => {
+          const existingItem = prevCart.find((item) => item.sku === sku);
 
-    setSearchTerm('');
-  };
+          if (existingItem) {
+            // Return a new array with updated quantity
+            return prevCart.map((item) =>
+              item.sku === sku ? { ...item, qty: item.qty + 1 } : item
+            );
+          } else {
+            // Add new item
+            return [...prevCart, { name, price, qty: 1, sku }];
+          }
+        });
 
-
-
-  const handleRemoveItem = (index: number) => {
-    const updated = [...cart];
-    updated.splice(index, 1);
-    setCart(updated);
-  };
-
-  const applyDiscount = () => {
-    const discountAmount =
-      discountType === '%'
-        ? Math.round((subtotal * discountValue) / 100)
-        : discountValue;
-    setAppliedDiscount(discountAmount);
-  };
-
-  const applyTax = () => {
-    setAppliedTaxRate(taxRate);
-  };
-
-  const handleSaveCustomer = async () => {
-    try {
-      const trimmedName = customerName.trim();
-      const trimmedPhone = customerPhone.trim();
-
-      if (!trimmedName || !trimmedPhone) {
-        toast.error('Name and phone number are required.');
-        return;
-      }
-
-      const isDuplicatePhone = customerList.some(
-        (c) => c.phone.trim() === trimmedPhone
-      );
-
-      if (isDuplicatePhone) {
-        toast.error('Customer with this phone number already exists.');
-        return;
-      }
-
-      const customer = {
-        name: trimmedName,
-        email: customerEmail.trim(),
-        phone: trimmedPhone,
-        notes: customerNotes.trim(),
+        setSearchTerm('');
       };
 
-      await saveCustomer(customer);
-      toast.success('Customer saved!');
-      setShowCustomerModal(false);
-      setCustomerName('');
-      setCustomerEmail('');
-      setCustomerPhone('');
-      setCustomerNotes('');
-    } catch (err) {
-      console.error('Customer save error:', err);
-      toast.error('Server error');
-    }
-  };
-
-  const handleConfirmPayment = async () => {
-    const order = {
-      customer: {
-        name: customerName,
-        phone: customerPhone,
-        email: customerEmail
-      },
-      items: cart.map((item) => ({
-        name: item.name,
-        price: item.price,
-        qty: item.qty,
-        sku: item.sku
-      })),
-      paymentMode: selectedPaymentMethod,
-      subtotal,
-      discount: appliedDiscount,
-      tax: taxAmount,
-      grandTotal,
-      date: new Date().toLocaleDateString(),
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
 
 
-    const res = await saveOrder(order);
-    if (res.success) {
-      toast.success(`Order saved! No: ${res.order.orderId}`);
-      setLastOrder(res.order); // ✅ This now includes orderId and invoiceNumber
-      setShowPaymentModal(false);
-      setShowInvoiceModal(true);
-    } else {
-      toast.error('Failed to save order');
-    }
+      const handleRemoveItem = (index: number) => {
+        const updated = [...cart];
+        updated.splice(index, 1);
+        setCart(updated);
+      };
 
-  };
+      const applyDiscount = () => {
+        const discountAmount =
+          discountType === '%'
+            ? Math.round((subtotal * discountValue) / 100)
+            : discountValue;
+        setAppliedDiscount(discountAmount);
+      };
+
+      const applyTax = () => {
+        setAppliedTaxRate(taxRate);
+      };
+
+      const handleSaveCustomer = async () => {
+        try {
+          const trimmedName = customerName.trim();
+          const trimmedPhone = customerPhone.trim();
+
+          if (!trimmedName || !trimmedPhone) {
+            toast.error('Name and phone number are required.');
+            return;
+          }
+
+          const isDuplicatePhone = customerList.some(
+            (c) => c.phone.trim() === trimmedPhone
+          );
+
+          if (isDuplicatePhone) {
+            toast.error('Customer with this phone number already exists.');
+            return;
+          }
+
+          const customer = {
+            name: trimmedName,
+            email: customerEmail.trim(),
+            phone: trimmedPhone,
+            notes: customerNotes.trim(),
+          };
+
+          await saveCustomer(customer);
+          toast.success('Customer saved!');
+          setShowCustomerModal(false);
+          setCustomerName('');
+          setCustomerEmail('');
+          setCustomerPhone('');
+          setCustomerNotes('');
+        } catch (err) {
+          console.error('Customer save error:', err);
+          toast.error('Server error');
+        }
+      };
+
+      const handleConfirmPayment = async () => {
+        if (cart.length === 0 || !customerName.trim() || !customerPhone.trim() || !selectedPaymentMethod) {
+          toast.error('Please complete all required fields.');
+          return;
+        }
+
+        const order = {
+          customer: {
+            name: customerName,
+            phone: customerPhone,
+            email: customerEmail
+          },
+          items: cart.map((item) => ({
+            name: item.name,
+            price: item.price,
+            qty: item.qty,
+            sku: item.sku
+          })),
+          paymentMode: selectedPaymentMethod,
+          subtotal,
+          discount: appliedDiscount,
+          tax: taxAmount,
+          grandTotal,
+          date: new Date().toLocaleDateString(),
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+
+        try {
+          const res = await saveOrder(order);
+          if (res.success) {
+            toast.success(`Order saved! No: ${res.order.orderId}`);
+            setLastOrder(res.order);
+            setShowPaymentModal(false);
+            setShowInvoiceModal(true);
+          } else {
+            toast.error(res.message || 'Failed to save order');
+          }
+        } catch (err) {
+          console.error('Order save error:', err);
+          toast.error('Server error');
+        }
+      };
 
       const invoiceRef = useRef<HTMLDivElement>(null);
 
@@ -437,6 +445,8 @@ export default function BillingPage() {
           {/* Discounts & Taxes */}
           <div className="bg-white rounded shadow-sm p-4 space-y-4">
             <SectionHeader icon={<FaPercentage />} title="Discounts & Taxes" />
+
+            {/* Discount Input */}
             <div className="flex items-center gap-2">
               <input
                 type="number"
@@ -452,6 +462,8 @@ export default function BillingPage() {
                 Apply Discount
               </button>
             </div>
+
+            {/* Discount Type Toggle */}
             <div className="flex gap-2">
               <button
                 onClick={() => setDiscountType('%')}
@@ -470,6 +482,8 @@ export default function BillingPage() {
                 ₹
               </button>
             </div>
+
+            {/* Tax Input */}
             <div>
               <p className="text-sm text-gray-600">Tax Rate</p>
               <div className="flex items-center gap-2 mt-2">
@@ -488,6 +502,7 @@ export default function BillingPage() {
               </div>
             </div>
           </div>
+
 
           {/* Payment Summary */}
           <div className="bg-white rounded shadow-sm p-4 space-y-2 text-sm">
