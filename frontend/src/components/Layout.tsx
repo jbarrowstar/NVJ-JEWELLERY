@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import TopBar from './TopBar';
 import Sidebar from './Sidebar';
 import { toast } from 'react-hot-toast';
@@ -7,10 +7,22 @@ import { useNavigate } from 'react-router-dom';
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [role, setRole] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const storedRole = localStorage.getItem('userRole');
+    if (!storedRole) {
+      toast.error('Session expired. Please log in again.');
+      navigate('/');
+    } else {
+      setRole(storedRole);
+    }
+  }, [navigate]);
 
   const handleLogout = () => {
     localStorage.removeItem('authToken');
+    localStorage.removeItem('userRole');
     toast.success('Logout successful!');
     setTimeout(() => navigate('/'), 1500);
   };
@@ -20,11 +32,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-gray-100 font-garamond">
       <TopBar setShowConfirm={setShowConfirm} />
-      <Sidebar isOpen={sidebarOpen} toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+      {role && (
+        <Sidebar
+          isOpen={sidebarOpen}
+          toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        />
+      )}
 
-      <main
-        className={`p-6 pt-20 transition-all duration-300   ${marginLeft}`}
-      >
+      <main className={`p-6 pt-20 transition-all duration-300 ${marginLeft}`}>
         {children}
       </main>
 

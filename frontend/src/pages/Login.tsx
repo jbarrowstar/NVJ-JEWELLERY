@@ -15,7 +15,14 @@ export default function Login() {
     const res = await loginUser({ email, password });
     if (res.success) {
       toast.success('Login successful!');
-      setTimeout(() => navigate('/dashboard'), 1500);
+      localStorage.setItem('userRole', res.user.role);
+      setTimeout(() => {
+        if (res.user.role === 'admin') {
+          navigate('/admin/dashboard');
+        } else {
+          navigate('/dashboard');
+        }
+      }, 1500);
     } else {
       toast.error('Invalid credentials');
     }
@@ -24,19 +31,14 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center font-garamond px-4">
       <div className="bg-white rounded shadow-md w-full max-w-md h-full max-h-[650px] flex flex-col p-6 sm:p-8">
-        {/* Header */}
         <div className="flex items-center justify-center mb-4 space-x-3">
           <img src={logo} alt="Nirvaha Logo" className="h-12 w-auto" />
           <h1 className="text-3xl text-[#CC9200] font-bold">NIRVAHA</h1>
         </div>
-
-        {/* Welcome Text */}
         <p className="text-center text-gray-600 mb-6">
           Welcome to Nirvaha POS<br />
           Please enter your credentials to access the system.
         </p>
-
-        {/* Form */}
         <div className="flex flex-col justify-center gap-4">
           <input
             type="email"
@@ -45,7 +47,6 @@ export default function Login() {
             onChange={e => setEmail(e.target.value)}
             className="w-full p-2 border rounded"
           />
-
           <div className="relative">
             <input
               type={showPassword ? 'text' : 'password'}
@@ -62,8 +63,6 @@ export default function Login() {
             </span>
           </div>
         </div>
-
-        {/* Button */}
         <div className="mt-6">
           <button
             onClick={handleLogin}

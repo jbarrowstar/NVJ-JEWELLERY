@@ -8,21 +8,39 @@ import {
   FaUsers,
   FaTimes,
   FaBars,
+  FaUserShield,
 } from 'react-icons/fa';
 
-export default function Sidebar({
-  isOpen,
-  toggleSidebar,
-}: {
+type SidebarProps = {
   isOpen: boolean;
   toggleSidebar: () => void;
-}) {
+};
+
+export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
+  const role = localStorage.getItem('userRole'); // 'admin' or 'staff'
+
+  const staffLinks = [
+    { label: 'Home', to: '/dashboard', icon: <FaHome /> },
+    { label: 'Billing POS', to: '/billing', icon: <FaFileInvoice /> },
+    { label: 'Order History', to: '/orders', icon: <FaHistory /> },
+    { label: 'Return Refunds', to: '/returns', icon: <FaUndo /> },
+    { label: 'Customers', to: '/customers', icon: <FaUsers /> },
+  ];
+
+  const adminLinks = [
+    { label: 'Dashboard', to: '/admin/dashboard', icon: <FaHome /> },
+    { label: 'User Management', to: '/admin/users', icon: <FaUserShield /> },
+  ];
+
+  const linksToRender = role === 'admin' ? adminLinks : staffLinks;
+
   return (
     <div
       className={`fixed top-16 left-0 h-[calc(100vh-4rem)] bg-white shadow-md flex flex-col transition-all duration-300 z-40 ${
         isOpen ? 'w-64' : 'w-16'
       }`}
     >
+      {/* 🔘 Sidebar Toggle */}
       <div className="flex justify-end p-4">
         <button
           onClick={toggleSidebar}
@@ -32,12 +50,17 @@ export default function Sidebar({
         </button>
       </div>
 
+      {/* 📁 Navigation Links */}
       <nav className="flex flex-col gap-4 px-4 text-gray-700">
-        <NavItem icon={<FaHome />} label="Home" to="/dashboard" isOpen={isOpen} />
-        <NavItem icon={<FaFileInvoice />} label="Billing POS" to="/billing" isOpen={isOpen} />
-        <NavItem icon={<FaHistory />} label="Order History" to="/orders" isOpen={isOpen} />
-        <NavItem icon={<FaUndo />} label="Return Refunds" to="/returns" isOpen={isOpen} />
-        <NavItem icon={<FaUsers />} label="Customers" to="/customers" isOpen={isOpen} />
+        {linksToRender.map((link) => (
+          <NavItem
+            key={link.to}
+            icon={link.icon}
+            label={link.label}
+            to={link.to}
+            isOpen={isOpen}
+          />
+        ))}
       </nav>
     </div>
   );
