@@ -11,6 +11,8 @@ import CustomerPage from './pages/CustomerPage';
 // Admin Pages
 import AdminDashboard from './pages/AdminDashboard';
 import AdminEmployeePage from './pages/AdminEmployeePage';
+import AdminCategoryPage from './pages/AdminCategoryPage';
+import AdminProductPage from './pages/AdminProductPage'; // ✅ NEW
 
 function App() {
   return (
@@ -29,7 +31,11 @@ function App() {
         {/* Admin */}
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="/admin/users" element={<AdminEmployeePage />} />
-        
+        <Route path="/admin/products" element={<AdminProductPage />} />
+        <Route path="/admin/categories" element={<AdminCategoryPage />} />
+        <Route path="/admin/billing" element={<BillingPage />} />
+        <Route path="/admin/orders" element={<OrderHistoryPage />} />
+        <Route path="/admin/customers" element={<CustomerPage />} />
       </Routes>
     </Router>
   );

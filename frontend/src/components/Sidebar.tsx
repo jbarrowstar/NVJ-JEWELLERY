@@ -9,6 +9,8 @@ import {
   FaTimes,
   FaBars,
   FaUserShield,
+  FaTags,
+  FaBoxOpen,
 } from 'react-icons/fa';
 
 type SidebarProps = {
@@ -27,10 +29,15 @@ export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
     { label: 'Customers', to: '/customers', icon: <FaUsers /> },
   ];
 
-  const adminLinks = [
-    { label: 'Dashboard', to: '/admin/dashboard', icon: <FaHome /> },
-    { label: 'User Management', to: '/admin/users', icon: <FaUserShield /> },
-  ];
+const adminLinks = [
+  { label: 'Dashboard', to: '/admin/dashboard', icon: <FaHome /> },
+  { label: 'Billing POS', to: '/admin/billing', icon: <FaFileInvoice /> },
+  { label: 'Product Management', to: '/admin/products', icon: <FaBoxOpen /> },
+  { label: 'Category Management', to: '/admin/categories', icon: <FaTags /> },
+  { label: 'User Management', to: '/admin/users', icon: <FaUserShield /> },
+  { label: 'Order History', to: '/admin/orders', icon: <FaHistory /> },
+  { label: 'Customers', to: '/admin/customers', icon: <FaUsers /> },
+];
 
   const linksToRender = role === 'admin' ? adminLinks : staffLinks;
 

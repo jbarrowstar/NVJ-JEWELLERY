@@ -64,8 +64,8 @@ export default function CustomerPage() {
       </h2>
 
       {/* 🔍 Search & Add */}
-      <div className="flex flex-col md:flex-row gap-4 mb-6">
-        <div className="flex items-center border rounded px-3 py-2 w-full md:w-2/3">
+      <div className="flex flex-col md:flex-row gap-4 mb-6 justify-between">
+        <div className="flex items-center border rounded px-3 py-2 w-1/2 md:1/2">
           <FaSearch className="text-gray-400 mr-2" />
           <input
             type="text"

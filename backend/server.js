@@ -8,6 +8,7 @@ const productRoutes = require('./routes/products');
 const customerRoutes = require('./routes/customers');
 const orderRoutes = require('./routes/orders');
 const returnRoutes = require('./routes/returns');
+const categoryRoutes = require('./routes/category');
 
 const app = express();
 app.use(cors());
@@ -22,6 +23,10 @@ app.use('/api/products', productRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/returns', returnRoutes);
+app.use('/api/categories', categoryRoutes);
+
+app.use('/uploads', express.static('uploads'));
+
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`🚀 Backend running on port ${PORT}`));
