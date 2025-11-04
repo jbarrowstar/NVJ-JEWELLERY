@@ -11,6 +11,7 @@ import {
   FaUserShield,
   FaTags,
   FaBoxOpen,
+  FaChartBar,
 } from 'react-icons/fa';
 
 type SidebarProps = {
@@ -37,6 +38,7 @@ const adminLinks = [
   { label: 'User Management', to: '/admin/users', icon: <FaUserShield /> },
   { label: 'Order History', to: '/admin/orders', icon: <FaHistory /> },
   { label: 'Customers', to: '/admin/customers', icon: <FaUsers /> },
+  { label: 'Reports & Analytics', to: '/admin/reports', icon: <FaChartBar /> },
 ];
 
   const linksToRender = role === 'admin' ? adminLinks : staffLinks;

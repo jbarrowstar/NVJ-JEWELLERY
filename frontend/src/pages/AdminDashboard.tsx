@@ -18,6 +18,7 @@ ChartJS.register(LineElement, CategoryScale, LinearScale, PointElement, Tooltip,
 type Order = {
   grandTotal: number;
   date: string;
+  createdAt: string;
 };
 
 type StockItem = {
@@ -93,36 +94,39 @@ export default function AdminDashboard() {
 
       {/* 📈 Sales Trend Chart */}
       <h3 className="text-lg font-semibold text-gray-700 mb-4">Sales Trend Over Time</h3>
-      <div className="bg-white shadow rounded p-6 mb-8">
-        <Line
-          data={{
-            labels: monthlySales.labels,
-            datasets: [
-              {
-                label: 'Monthly Sales',
-                data: monthlySales.values,
-                borderColor: '#CC9200',
-                backgroundColor: 'rgba(204, 146, 0, 0.2)',
-                tension: 0.3,
+      <div className="bg-white shadow rounded p-4 mb-8 mx-auto md:w-3/4">
+        <div className="h-[300px]">
+          <Line
+            data={{
+              labels: monthlySales.labels,
+              datasets: [
+                {
+                  label: 'Monthly Sales',
+                  data: monthlySales.values,
+                  borderColor: '#CC9200',
+                  backgroundColor: 'rgba(204, 146, 0, 0.2)',
+                  tension: 0.3,
+                },
+              ],
+            }}
+            options={{
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: { mode: 'index', intersect: false },
               },
-            ],
-          }}
-          options={{
-            responsive: true,
-            plugins: {
-              legend: { display: false },
-              tooltip: { mode: 'index', intersect: false },
-            },
-            scales: {
-              y: {
-                beginAtZero: true,
-                ticks: {
-                  callback: (value) => `₹${value.toLocaleString('en-IN')}`,
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  ticks: {
+                    callback: (value) => `₹${value.toLocaleString('en-IN')}`,
+                  },
                 },
               },
-            },
-          }}
-        />
+            }}
+          />
+        </div>
       </div>
 
       {/* 📦 Stock Alerts */}
@@ -178,11 +182,20 @@ function getMonthlySales(orders: Order[]) {
   const monthlyMap: { [month: string]: number } = {};
 
   orders.forEach((order) => {
-    const month = new Date(order.date).toLocaleString('en-IN', { month: 'short' });
+    const date = new Date(order.createdAt);
+    const month = date.toLocaleString('en-IN', { month: 'short', year: 'numeric' });
     monthlyMap[month] = (monthlyMap[month] || 0) + order.grandTotal;
   });
 
-  const labels = Object.keys(monthlyMap);
+  const sortedMonths = Object.keys(monthlyMap).sort((a, b) => {
+    const [aMonth, aYear] = a.split(' ');
+    const [bMonth, bYear] = b.split(' ');
+    const aDate = new Date(`${aMonth} 1, ${aYear}`);
+    const bDate = new Date(`${bMonth} 1, ${bYear}`);
+    return aDate.getTime() - bDate.getTime();
+  });
+
+  const labels = sortedMonths;
   const values = labels.map((m) => monthlyMap[m]);
 
   return { labels, values };

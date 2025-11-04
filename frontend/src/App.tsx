@@ -12,7 +12,8 @@ import CustomerPage from './pages/CustomerPage';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminEmployeePage from './pages/AdminEmployeePage';
 import AdminCategoryPage from './pages/AdminCategoryPage';
-import AdminProductPage from './pages/AdminProductPage'; // ✅ NEW
+import AdminProductPage from './pages/AdminProductPage';
+import AdminReportsPage from './pages/AdminReportsPage';
 
 function App() {
   return (
@@ -36,6 +37,7 @@ function App() {
         <Route path="/admin/billing" element={<BillingPage />} />
         <Route path="/admin/orders" element={<OrderHistoryPage />} />
         <Route path="/admin/customers" element={<CustomerPage />} />
+        <Route path="/admin/reports" element={<AdminReportsPage />} />
       </Routes>
     </Router>
   );
