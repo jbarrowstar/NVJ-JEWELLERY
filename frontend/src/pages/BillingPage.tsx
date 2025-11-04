@@ -60,16 +60,26 @@ export default function BillingPage() {
 
       useEffect(() => {
         fetchProducts()
-          .then((items) => {
-            setSuggestedItems(items);
-            setFilteredItems(items);
-            const fuse = new Fuse(items, {
-              keys: ['name', 'sku'],
-              threshold: 0.3,
-            });
-            setProductFuse(fuse);
-          })
-          .catch((err) => console.error('Product fetch error:', err));
+        .then((items) => {
+          const safeItems = items
+            .filter((item) => typeof item.image === 'string') // ensure image exists
+            .map((item) => ({
+              name: item.name,
+              price: item.price,
+              image: item.image as string,
+              sku: item.sku,
+            }));
+
+          setSuggestedItems(safeItems);
+          setFilteredItems(safeItems);
+
+          const fuse = new Fuse(safeItems, {
+            keys: ['name', 'sku'],
+            threshold: 0.3,
+          });
+          setProductFuse(fuse);
+        })
+        .catch((err) => console.error('Product fetch error:', err));
       }, []);
 
       useEffect(() => {
@@ -348,10 +358,11 @@ export default function BillingPage() {
                     className="border rounded shadow-sm p-2 bg-white flex flex-col items-center text-center"
                   >
                     <img
-                      src={item.image}
-                      alt={item.name}
-                      className="h-24 w-24 object-cover rounded mb-2"
-                    />
+                    src={item.image ? `http://localhost:3001${item.image}` : '/default.jpg'}
+                    alt={item.name}
+                    className="h-24 w-24 object-cover rounded mb-2"
+                  />
+
                     <span className="font-semibold text-sm">{item.name}</span>
                     <span className="text-sm text-gray-600 mb-2">
                       ₹{item.price.toLocaleString()}
