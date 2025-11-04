@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Order = require('../models/Order');
+const Product = require('../models/Product');
 const Counter = require('../models/Counter');
 
 // Helper to generate formatted IDs
@@ -28,6 +29,16 @@ router.post('/', async (req, res) => {
     });
 
     await newOrder.save();
+
+    // 🔻 Update stock for each item
+    for (const item of req.body.items) {
+      await Product.findOneAndUpdate(
+        { sku: item.sku },
+        { $inc: { stock: -item.qty } },
+        { new: true }
+      );
+    }
+
     res.json({ success: true, order: newOrder });
   } catch (err) {
     console.error('Order save error:', err);

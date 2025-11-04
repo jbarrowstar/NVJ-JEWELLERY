@@ -61,4 +61,25 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// 🔻 Low Stock Products
+router.get('/low-stock', async (req, res) => {
+  try {
+    const threshold = 3; // You can adjust this as needed
+    const lowStockItems = await Product.find({ stock: { $lte: threshold } })
+      .select('name stock')
+      .lean();
+
+    const items = lowStockItems.map(p => ({
+      name: p.name,
+      quantity: p.stock || 0,
+    }));
+
+    res.json({ success: true, items });
+  } catch (err) {
+    console.error('Low stock fetch error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+
 module.exports = router;
