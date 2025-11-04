@@ -94,7 +94,7 @@ export default function AdminDashboard() {
 
       {/* 📈 Sales Trend Chart */}
       <h3 className="text-lg font-semibold text-gray-700 mb-4">Sales Trend Over Time</h3>
-      <div className="bg-white shadow rounded p-4 mb-8 mx-auto md:w-3/4">
+      <div className="bg-white shadow rounded p-4 mb-8 mx-auto">
         <div className="h-[300px]">
           <Line
             data={{
