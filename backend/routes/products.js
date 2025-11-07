@@ -204,4 +204,15 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+
+router.put('/:sku/mark-sold', async (req, res) => {
+  try {
+    await Product.findOneAndUpdate({ sku: req.params.sku }, { available: false });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Mark sold error:', err);
+    res.status(500).json({ success: false });
+  }
+});
+
 module.exports = router;

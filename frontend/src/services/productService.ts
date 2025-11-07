@@ -13,6 +13,7 @@ export type Product = {
   description?: string;
   image?: string;
   qrCode?: string;
+  available?: boolean;
 };
 
 

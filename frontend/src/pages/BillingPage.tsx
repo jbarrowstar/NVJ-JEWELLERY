@@ -12,6 +12,16 @@ import { useRef } from 'react';
 import { useReactToPrint } from 'react-to-print';
 import html2pdf from 'html2pdf.js';
 
+type Product = {
+  name: string;
+  price: number;
+  image: string;
+  sku: string;
+  available?: boolean;
+};
+
+
+
 function SectionHeader({ icon, title }: { icon: JSX.Element; title: string }) {
   return (
     <div className="flex items-center gap-2 text-lg font-semibold text-gray-800 mb-2">
@@ -23,12 +33,9 @@ function SectionHeader({ icon, title }: { icon: JSX.Element; title: string }) {
 
 export default function BillingPage() {
         const [cart, setCart] = useState<{ name: string; price: number; qty: number; sku: string }[]>([]);
-        const [suggestedItems, setSuggestedItems] = useState<
-          { name: string; price: number; image: string; sku: string }[]
-        >([]);
-        const [filteredItems, setFilteredItems] = useState<
-          { name: string; price: number; image: string; sku: string }[]
-        >([]);
+        const [suggestedItems, setSuggestedItems] = useState<Product[]>([]);
+        const [filteredItems, setFilteredItems] = useState<Product[]>([]);
+
         const [searchTerm, setSearchTerm] = useState('');
         const [productFuse, setProductFuse] = useState<Fuse<any> | null>(null);
 
@@ -62,14 +69,14 @@ export default function BillingPage() {
         fetchProducts()
         .then((items) => {
           const safeItems = items
-            .filter((item) => typeof item.image === 'string') // ensure image exists
-            .map((item) => ({
-              name: item.name,
-              price: item.price,
-              image: item.image as string,
-              sku: item.sku,
-            }));
-
+          .filter((item) => item.available !== false && typeof item.image === 'string')
+          .map((item) => ({
+            name: item.name,
+            price: item.price,
+            image: item.image as string,
+            sku: item.sku,
+            available: item.available, // ✅ Add this line
+          }));
           setSuggestedItems(safeItems);
           setFilteredItems(safeItems);
 
@@ -111,6 +118,7 @@ export default function BillingPage() {
             })
             .catch((err) => console.error('Customer fetch error:', err));
         }
+        
       }, [showSelectCustomerModal]);
 
       useEffect(() => {
@@ -240,6 +248,16 @@ export default function BillingPage() {
             setLastOrder(res.order);
             setShowPaymentModal(false);
             setShowInvoiceModal(true);
+
+            await Promise.all(
+              cart.map((item) =>
+                fetch(`http://localhost:3001/api/products/${item.sku}/mark-sold`, {
+                  method: 'PUT',
+                })
+              )
+            );
+
+            
           } else {
             toast.error(res.message || 'Failed to save order');
           }
@@ -369,9 +387,14 @@ export default function BillingPage() {
                     </span>
                     <button
                       onClick={() => handleAddItem(item.name, item.price, item.sku)}
-                      className="bg-[#CC9200] text-white px-3 py-1 rounded text-sm"
+                      disabled={item.available === false}
+                      className={`px-3 py-1 rounded text-sm ${
+                        item.available === false
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : 'bg-[#CC9200] text-white hover:bg-yellow-500'
+                      }`}
                     >
-                      Add
+                      {item.available === false ? 'Sold Out' : 'Add'}
                     </button>
                   </div>
                 ))}

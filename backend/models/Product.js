@@ -15,6 +15,7 @@ const productSchema = new mongoose.Schema({
   description: { type: String, default: '' },
   image: { type: String, default: '' }, // path like /uploads/...
   qrCode: { type: String, default: '' },
+  available: { type: Boolean, default: true },
 }, { timestamps: true });
 
 // Optional: ensure small text fields are safe before saving

@@ -27,7 +27,9 @@ export type Product = {
   description?: string;
   image?: string;
   qrCode?: string;
+  available?: boolean; // ✅ Add this line
 };
+
 
 type Category = {
   _id?: string;
@@ -445,7 +447,13 @@ return (
                   <td className="p-2">{prod.category || '-'}</td>
                   <td className="p-2">{prod.weight || '-'}</td>
                   <td className="p-2">{prod.purity || '-'}</td>
-                  <td className="p-2">₹{Number(prod.price || 0).toFixed(2)}</td>
+                  <td className="p-2">
+                    {prod.available === false ? (
+                      <span className="text-red-600 font-semibold">Sold Out</span>
+                    ) : (
+                      `₹${Number(prod.price || 0).toFixed(2)}`
+                    )}
+                  </td>
                   <td className="p-2 text-center flex justify-center gap-2">
                     <button
                       className="text-blue-600 hover:text-blue-800"
