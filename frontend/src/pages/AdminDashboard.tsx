@@ -21,15 +21,18 @@ type Order = {
   createdAt: string;
 };
 
+type GoldPurity = '24K' | '22K' | '18K';
+
 export default function AdminDashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [goldRate, setGoldRate] = useState<number | undefined>(undefined);
-  const [silverRate, setSilverRate] = useState<number | undefined>(undefined);
-
-  const [inputRate, setInputRate] = useState('');
-  const [inputSilver, setInputSilver] = useState('');
-  const [editMode, setEditMode] = useState(false);
-  const [editSilver, setEditSilver] = useState(false);
+  const [goldRates, setGoldRates] = useState<Record<GoldPurity, number>>({
+    '24K': 0,
+    '22K': 0,
+    '18K': 0,
+  });
+  const [silverRate, setSilverRate] = useState<number>(0);
+  const [inputs, setInputs] = useState<Record<string, string>>({});
+  const [editModes, setEditModes] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     Promise.all([
@@ -39,10 +42,14 @@ export default function AdminDashboard() {
       .then(([orderData, rateData]) => {
         if (orderData.success) setOrders(orderData.orders);
         if (rateData.success) {
-          const gold = rateData.rates.find((r: any) => r.metal === 'gold');
-          const silver = rateData.rates.find((r: any) => r.metal === 'silver');
-          if (gold) setGoldRate(gold.price);
-          if (silver) setSilverRate(silver.price);
+          const gold: Record<GoldPurity, number> = { '24K': 0, '22K': 0, '18K': 0 };
+          let silver = 0;
+          for (const r of rateData.rates) {
+            if (r.metal === 'gold' && r.purity) gold[r.purity as GoldPurity] = r.price;
+            if (r.metal === 'silver') silver = r.price;
+          }
+          setGoldRates(gold);
+          setSilverRate(silver);
         }
       })
       .catch((err) => {
@@ -51,18 +58,27 @@ export default function AdminDashboard() {
       });
   }, []);
 
-  const updateRate = (metal: 'gold' | 'silver', price: number, onSuccess: () => void) => {
+  const updateRate = (
+    metal: 'gold' | 'silver',
+    price: number,
+    purity: GoldPurity | null,
+    onSuccess: () => void
+  ) => {
     fetch(`http://localhost:3001/api/rates/${metal}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ price }),
+      body: JSON.stringify({ price, purity }),
     })
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
-          metal === 'gold' ? setGoldRate(data.rate.price) : setSilverRate(data.rate.price);
+          if (metal === 'gold' && purity) {
+            setGoldRates((prev) => ({ ...prev, [purity]: data.rate.price }));
+          } else {
+            setSilverRate(data.rate.price);
+          }
           onSuccess();
-          toast.success(`${metal.charAt(0).toUpperCase() + metal.slice(1)} rate updated to ₹${data.rate.price}`);
+          toast.success(`${metal.toUpperCase()} ${purity ?? ''} rate updated to ₹${data.rate.price}`);
         } else {
           toast.error(`Failed to update ${metal} rate`);
         }
@@ -90,30 +106,47 @@ export default function AdminDashboard() {
         <FaBoxOpen /> Dashboard Overview
       </h2>
 
-      {/* 🧮 Summary Cards */}
-      {/* 🔝 Top Row: Metal Rates */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        <RateCard
-          title="Today's Gold Rate"
-          rate={goldRate}
-          input={inputRate}
-          setInput={setInputRate}
-          edit={editMode}
-          setEdit={setEditMode}
-          onApply={(rate) => updateRate('gold', rate, () => setEditMode(false))}
-        />
-        <RateCard
-          title="Today's Silver Rate"
-          rate={silverRate}
-          input={inputSilver}
-          setInput={setInputSilver}
-          edit={editSilver}
-          setEdit={setEditSilver}
-          onApply={(rate) => updateRate('silver', rate, () => setEditSilver(false))}
-        />
+      {/* Rates Section */}
+      <div className="bg-white shadow rounded p-6 mb-6">
+        <h4 className="text-md font-medium text-gray-700 mb-4">Today's Gold & Silver Rates</h4>
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          {(['24K', '22K', '18K'] as GoldPurity[]).map((purity) => {
+            const key = `gold-${purity}`;
+            return (
+              <RateCard
+                key={key}
+                title={`${purity} Gold`}
+                rate={goldRates[purity]}
+                input={inputs[key] ?? ''}
+                setInput={(val) => setInputs((p) => ({ ...p, [key]: val }))}
+                edit={editModes[key] ?? false}
+                setEdit={(val) => setEditModes((p) => ({ ...p, [key]: val }))}
+                onApply={(rate) =>
+                  updateRate('gold', rate, purity, () =>
+                    setEditModes((p) => ({ ...p, [key]: false }))
+                  )
+                }
+              />
+            );
+          })}
+          <RateCard
+            key="silver"
+            title="Silver"
+            rate={silverRate}
+            input={inputs['silver'] ?? ''}
+            setInput={(val) => setInputs((p) => ({ ...p, silver: val }))}
+            edit={editModes['silver'] ?? false}
+            setEdit={(val) => setEditModes((p) => ({ ...p, silver: val }))}
+            onApply={(rate) =>
+              updateRate('silver', rate, null, () =>
+                setEditModes((p) => ({ ...p, silver: false }))
+              )
+            }
+          />
+        </div>
       </div>
 
-      {/* 🧾 Middle Row: Sales + Orders */}
+      {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <SummaryCard
           title="Sales Today"
@@ -129,46 +162,46 @@ export default function AdminDashboard() {
         />
       </div>
 
-      {/* 📈 Bottom: Chart */}
+      {/* Sales Chart */}
       <h3 className="text-lg font-semibold text-gray-700 mb-4">Sales Trend Over Time</h3>
       <div className="bg-white shadow rounded p-4 mb-8 mx-auto">
         <div className="h-[300px]">
           <Line
-                  data={{
-                    labels: monthlySales.labels,
-                    datasets: [
-                      {
-                        label: 'Monthly Sales',
-                        data: monthlySales.values,
-                        borderColor: '#CC9200',
-                        backgroundColor: 'rgba(204, 146, 0, 0.2)',
-                        tension: 0.3,
-                      },
-                    ],
-                  }}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                      legend: { display: false },
-                      tooltip: { mode: 'index', intersect: false },
-                    },
-                    scales: {
-                      y: {
-                        beginAtZero: true,
-                        ticks: {
-                          callback: (value) => `₹${value.toLocaleString('en-IN')}`,
-                        },
-                      },
-                      x: {
-                        ticks: {
-                          autoSkip: true,
-                          maxTicksLimit: 12,
-                        },
-                      },
-                    },
-                  }}
-                />
+            data={{
+              labels: monthlySales.labels,
+              datasets: [
+                {
+                  label: 'Monthly Sales',
+                  data: monthlySales.values,
+                  borderColor: '#CC9200',
+                  backgroundColor: 'rgba(204, 146, 0, 0.2)',
+                  tension: 0.3,
+                },
+              ],
+            }}
+            options={{
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: { mode: 'index', intersect: false },
+              },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  ticks: {
+                    callback: (value) => `₹${value.toLocaleString('en-IN')}`,
+                  },
+                },
+                x: {
+                  ticks: {
+                    autoSkip: true,
+                    maxTicksLimit: 12,
+                  },
+                },
+              },
+            }}
+          />
         </div>
       </div>
     </Layout>
@@ -200,8 +233,8 @@ function RateCard({
   };
 
   return (
-    <div className="bg-white shadow rounded p-6 text-left relative">
-      <FaRupeeSign className="h-5 w-5 text-gray-400 absolute top-4 right-4" />
+    <div className="bg-white shadow-xl sha rounded p-6 text-left relative">
+            <FaRupeeSign className="h-5 w-5 text-gray-400 absolute top-4 right-4" />
       <h4 className="text-md font-medium text-gray-600 mb-2">{title}</h4>
       {edit ? (
         <div className="flex items-center gap-2">
@@ -263,6 +296,7 @@ function SummaryCard({
     </div>
   );
 }
+
 
 function getMonthlySales(orders: Order[]) {
   const monthlyMap: { [month: string]: number } = {};
