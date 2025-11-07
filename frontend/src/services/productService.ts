@@ -1,16 +1,20 @@
 export type Product = {
   _id?: string;
   name: string;
-  price: number;
   sku: string;
-  image?: string;
   category?: string;
+  metal: 'gold' | 'silver';
   weight?: string;
   purity?: string;
+  makingCharges?: number;
+  wastage?: number;
+  stonePrice?: number;
+  price: number;
   description?: string;
+  image?: string;
   qrCode?: string;
-  stock?: number;
 };
+
 
 const API_BASE = 'http://localhost:3001/api/products';
 

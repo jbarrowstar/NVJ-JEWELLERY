@@ -558,7 +558,7 @@ export default function BillingPage() {
 
 {/* Customer Modal */}
 {showCustomerModal && (
-  <div className="fixed inset-0 bg-gray-400 bg-opacity-20 z-40 flex items-center justify-center">
+  <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#99A1AF]/90">
     <div className="bg-white rounded shadow-lg p-6 w-full max-w-md text-sm z-50 relative">
       <button
         onClick={() => setShowCustomerModal(false)}
@@ -618,7 +618,7 @@ export default function BillingPage() {
 
 {/* Pay Now Modal */}
 {showPaymentModal && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center">
+  <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#99A1AF]/90">
     <div className="bg-white rounded shadow-lg w-full max-w-2xl text-sm z-50 relative p-4">
       <button
         onClick={() => setShowPaymentModal(false)}
@@ -682,7 +682,7 @@ export default function BillingPage() {
 
 {/* Invoice Modal */}
 {showInvoiceModal && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+  <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#99A1AF]/90 pt-10">
     <div className="bg-white rounded shadow-lg w-full max-w-3xl text-sm relative p-6">
       <button
         onClick={() => setShowInvoiceModal(false)}
@@ -712,26 +712,30 @@ export default function BillingPage() {
 
       <div className="mb-6">
         <h3 className="font-semibold text-gray-800 mb-2">📦 Order Items</h3>
-        <table className="w-full text-sm border">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="p-2 text-left">Product</th>
-              <th className="p-2 text-right">Price</th>
-              <th className="p-2 text-center">Qty</th>
-              <th className="p-2 text-right">Subtotal</th>
-            </tr>
-          </thead>
-          <tbody>
-            {cart.map((item, idx) => (
-              <tr key={idx} className="border-t">
-                <td className="p-2">{item.name}</td>
-                <td className="p-2 text-right">₹{item.price.toLocaleString()}</td>
-                <td className="p-2 text-center">{item.qty}</td>
-                <td className="p-2 text-right">₹{(item.price * item.qty).toLocaleString()}</td>
+
+        {/* Scrollable items container - shows ~2 rows then scrolls */}
+        <div className="max-h-40 overflow-y-auto border rounded">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-100 sticky top-0 z-10">
+              <tr>
+                <th className="p-2 text-left">Product</th>
+                <th className="p-2 text-right">Price</th>
+                <th className="p-2 text-center">Qty</th>
+                <th className="p-2 text-right">Subtotal</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {cart.map((item, idx) => (
+                <tr key={idx} className="border-t">
+                  <td className="p-2">{item.name}</td>
+                  <td className="p-2 text-right">₹{item.price.toLocaleString()}</td>
+                  <td className="p-2 text-center">{item.qty}</td>
+                  <td className="p-2 text-right">₹{(item.price * item.qty).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="bg-gray-50 border rounded p-4 space-y-2 text-sm">
@@ -791,6 +795,7 @@ export default function BillingPage() {
     </div>
   </div>
 )}
+
 </>
   )
 }

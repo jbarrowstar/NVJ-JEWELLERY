@@ -171,7 +171,7 @@ export default function AdminCategoryPage() {
       </div>
 
       {(showModal || editCategory) && (
-        <div className="fixed inset-0 bg-gray-400 bg-opacity-20 z-40 flex items-center justify-center">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#99A1AF]/90">
           <div className="bg-white rounded shadow-lg p-6 w-full max-w-md text-sm z-50 relative">
             <button
               onClick={() => {
@@ -240,7 +240,7 @@ export default function AdminCategoryPage() {
       )}
 
       {confirmDeleteId && (
-        <div className="fixed inset-0 bg-gray-400 bg-opacity-20 z-40 flex items-center justify-center">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#99A1AF]/90">
           <div className="bg-white rounded shadow-lg p-6 w-full max-w-md text-sm z-50 relative">
             <button
               onClick={() => setConfirmDeleteId(null)}

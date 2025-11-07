@@ -223,7 +223,7 @@ export default function OrderHistoryPage() {
 
       {/* 🔁 Return Modal */}
       {showReturnModal && returnOrder && (
-        <div className="fixed inset-0 bg-gray-800 bg-opacity-20 z-40 flex items-center justify-center">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#99A1AF]/90">
           <div className="bg-white rounded shadow-lg w-full max-w-2xl text-sm relative p-6">
             <button
               onClick={() => setShowReturnModal(false)}
