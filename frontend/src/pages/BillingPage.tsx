@@ -15,7 +15,7 @@ import html2pdf from 'html2pdf.js';
 type Product = {
   name: string;
   price: number;
-  image: string;
+  image?: string;
   sku: string;
   available?: boolean;
 };
@@ -139,23 +139,16 @@ export default function BillingPage() {
 
       const handleAddItem = (name: string, price: number, sku: string) => {
         setCart((prevCart) => {
-          const existingItem = prevCart.find((item) => item.sku === sku);
-
-          if (existingItem) {
-            // Return a new array with updated quantity
-            return prevCart.map((item) =>
-              item.sku === sku ? { ...item, qty: item.qty + 1 } : item
-            );
-          } else {
-            // Add new item
-            return [...prevCart, { name, price, qty: 1, sku }];
+          const alreadyExists = prevCart.some((item) => item.sku === sku);
+          if (alreadyExists) {
+            toast.error('This item is already in the cart.');
+            return prevCart;
           }
+          return [...prevCart, { name, price, qty: 1, sku }];
         });
 
         setSearchTerm('');
       };
-
-
 
       const handleRemoveItem = (index: number) => {
         const updated = [...cart];
@@ -256,6 +249,25 @@ export default function BillingPage() {
                 })
               )
             );
+            // Refresh product list after marking sold
+fetchProducts()
+  .then((items: Product[]) => {
+    const safeItems = items
+      .filter((item) => item.available !== false && typeof item.image === 'string')
+      .map((item) => ({
+        name: item.name,
+        price: item.price,
+        image: item.image as string,
+        sku: item.sku,
+        available: item.available,
+      }));
+
+    setSuggestedItems(safeItems);
+    setFilteredItems(safeItems);
+    setProductFuse(new Fuse(safeItems, { keys: ['name', 'sku'], threshold: 0.3 }));
+  })
+  .catch((err) => console.error('Product refresh error:', err));
+
 
             
           } else {
@@ -387,15 +399,20 @@ export default function BillingPage() {
                     </span>
                     <button
                       onClick={() => handleAddItem(item.name, item.price, item.sku)}
-                      disabled={item.available === false}
+                      disabled={item.available === false || cart.some((c) => c.sku === item.sku)}
                       className={`px-3 py-1 rounded text-sm ${
-                        item.available === false
+                        item.available === false || cart.some((c) => c.sku === item.sku)
                           ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                           : 'bg-[#CC9200] text-white hover:bg-yellow-500'
                       }`}
                     >
-                      {item.available === false ? 'Sold Out' : 'Add'}
+                      {item.available === false
+                        ? 'Sold Out'
+                        : cart.some((c) => c.sku === item.sku)
+                        ? 'Added'
+                        : 'Add'}
                     </button>
+
                   </div>
                 ))}
               </div>
@@ -607,7 +624,7 @@ export default function BillingPage() {
 
 {/* Select Customer Modal */}
 {showSelectCustomerModal && (
-  <div className="fixed inset-0 bg-gray-400 bg-opacity-20 z-40 flex items-center justify-center">
+  <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#99A1AF]/90">
     <div className="bg-white rounded shadow-lg p-6 w-full max-w-md text-sm relative">
       <button
         onClick={() => setShowSelectCustomerModal(false)}
@@ -706,7 +723,7 @@ export default function BillingPage() {
 {/* Invoice Modal */}
 {showInvoiceModal && (
   <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#99A1AF]/90 pt-10">
-    <div className="bg-white rounded shadow-lg w-full max-w-3xl text-sm relative p-6">
+    <div className="bg-white shadow-xl p-6 text-sm relative max-h-[80vh] overflow-y-auto">
       <button
         onClick={() => setShowInvoiceModal(false)}
         className="absolute top-4 right-4 text-gray-500 hover:text-red-500 text-xl"
