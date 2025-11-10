@@ -16,12 +16,13 @@ const InvoiceContent = React.forwardRef<HTMLDivElement, {
         <img src={logo} alt="Nirvaha Jewellers" className="h-16 object-contain" />
         <div className="text-right">
           <h1 className="text-2xl font-bold text-[#CC9200]">NIRVAHA JEWELLERS</h1>
-          <p className="text-xs">Add Address</p>
-          <p className="text-xs">Mobile: +91 9999999999 | Email: company@gmail.com</p>
+          <p className="text-xs">Bazar Street, Mulbagal, Kolar District - 563131</p>
+          <p className="text-xs">Mobile: +91 9035325551 | Email: nirvahajewellery@gmail.com</p>
           <p className="text-xs">GSTIN: 29AAAAA1234F000 | PAN: 29AAAAA1234F</p>
         </div>
       </div>
 
+      
       {/* Invoice Metadata */}
       <div className="grid grid-cols-2 gap-6 mb-6">
         <div>
