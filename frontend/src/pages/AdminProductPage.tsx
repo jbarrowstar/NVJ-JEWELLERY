@@ -893,19 +893,49 @@ export default function AdminProductPage() {
         </div>
       )}
 
+
       {/* Hidden QR Print Block */}
       <div style={{ display: 'none' }}>
         <div ref={qrRef}>
-          <div style={{ textAlign: 'center', fontFamily: 'sans-serif', padding: '20px' }}>
-            <h3>{form.name || editProduct?.name}</h3>
-            <p>SKU: {form.sku || editProduct?.sku}</p>
-            <p>Metal: {form.metal || editProduct?.metal}</p>
-            <p>Purity: {form.purity || editProduct?.purity}</p>
-            <p>Weight: {form.weight || editProduct?.weight}</p>
-            <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(form.sku || editProduct?.sku || '')}`}
-              alt="QR Code"
-            />
+          <div style={{
+            width: '100mm',
+            height: '15mm',
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '8px',
+            padding: '1mm',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            border: '1px solid #ccc',
+            boxSizing: 'border-box'
+          }}>
+            {/* Left side - Text information */}
+            <div style={{ flex: 1, paddingRight: '2mm' }}>
+              <div style={{ fontWeight: 'bold', fontSize: '9px', marginBottom: '1px' }}>
+                {form.name || editProduct?.name}
+              </div>
+              <div style={{ marginBottom: '1px' }}>
+                <strong>SKU:</strong> {form.sku || editProduct?.sku}
+              </div>
+              <div style={{ display: 'flex', gap: '3mm', fontSize: '7px' }}>
+                <span><strong>Metal:</strong> {(form.metal || editProduct?.metal)?.toUpperCase()}</span>
+                <span><strong>Purity:</strong> {form.purity || editProduct?.purity}</span>
+                <span><strong>Wt:</strong> {form.weight || editProduct?.weight}g</span>
+              </div>
+            </div>
+            
+            {/* Right side - QR Code */}
+            <div style={{ width: '12mm', height: '12mm', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(form.sku || editProduct?.sku || '')}`}
+                alt="QR Code"
+                style={{ 
+                  width: '100%', 
+                  height: '100%',
+                  objectFit: 'contain'
+                }}
+              />
+            </div>
           </div>
         </div>
       </div>

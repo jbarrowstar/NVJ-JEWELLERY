@@ -1,5 +1,5 @@
 import Layout from '../components/Layout';
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   FaSearch,
   FaCalendarAlt,
@@ -8,7 +8,11 @@ import {
   FaUndoAlt,
   FaReceipt,
   FaUser,
-  FaBoxOpen
+  FaBoxOpen,
+  FaChevronLeft,
+  FaChevronRight,
+  FaStepBackward,
+  FaStepForward
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import Fuse from 'fuse.js';
@@ -36,6 +40,11 @@ type Order = {
   discount?: number;
   tax?: number;
   grandTotal: number;
+  paymentMode?: string;
+  paymentMethods?: Array<{
+    method: string;
+    amount: number;
+  }>;
 };
 
 export default function OrderHistoryPage() {
@@ -48,6 +57,8 @@ export default function OrderHistoryPage() {
   const [returnType, setReturnType] = useState('');
   const [returnedOrderIds, setReturnedOrderIds] = useState<string[]>([]);
   const [fuse, setFuse] = useState<Fuse<Order> | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 30;
 
   useEffect(() => {
     fetch('http://localhost:3001/api/orders')
@@ -75,14 +86,14 @@ export default function OrderHistoryPage() {
       });
   }, []);
 
-  const filteredByDate = orders.filter((order) => {
+  const filteredByDate = useMemo(() => orders.filter((order) => {
     if (!selectedDate) return true;
     const [day, month, year] = order.date.split('/');
     const normalized = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
     return normalized === selectedDate;
-  });
+  }), [orders, selectedDate]);
 
-  const filteredResults = (() => {
+  const filteredResults = useMemo(() => {
     if (!fuse) return filteredByDate;
     if (searchTerm.trim()) {
       const matches = fuse
@@ -92,7 +103,19 @@ export default function OrderHistoryPage() {
       return matches.filter((order) => filteredByDate.includes(order));
     }
     return filteredByDate;
-  })();
+  }, [fuse, searchTerm, filteredByDate]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredResults.length / itemsPerPage);
+  const paginatedOrders = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredResults.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredResults, currentPage, itemsPerPage]);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedDate]);
 
   const handleReturn = async (order: Order) => {
     try {
@@ -124,6 +147,102 @@ export default function OrderHistoryPage() {
   const getSubtotal = (order: Order | null) => {
     if (!order) return 0;
     return order.items.reduce((sum, item) => sum + item.price * item.qty, 0);
+  };
+
+  const getPaymentType = (order: Order) => {
+    if (order.paymentMethods && order.paymentMethods.length > 0) {
+      if (order.paymentMethods.length === 1) {
+        return order.paymentMethods[0].method;
+      }
+      return 'Multiple';
+    }
+    return order.paymentMode || '—';
+  };
+
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
+
+  const renderPaginationButtons = () => {
+    const buttons = [];
+    const maxVisiblePages = 5;
+    
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    // Adjust start page if we're near the end
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    // First page button
+    if (startPage > 1) {
+      buttons.push(
+        <button
+          key="first"
+          onClick={() => goToPage(1)}
+          className="px-3 py-1 border rounded hover:bg-gray-50 flex items-center gap-1"
+        >
+          <FaStepBackward className="text-xs" />
+        </button>
+      );
+    }
+
+    // Previous page button
+    buttons.push(
+      <button
+        key="prev"
+        onClick={() => goToPage(currentPage - 1)}
+        disabled={currentPage === 1}
+        className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 flex items-center gap-1"
+      >
+        <FaChevronLeft className="text-xs" />
+      </button>
+    );
+
+    // Page number buttons
+    for (let page = startPage; page <= endPage; page++) {
+      buttons.push(
+        <button
+          key={page}
+          onClick={() => goToPage(page)}
+          className={`px-3 py-1 border rounded ${
+            currentPage === page
+              ? 'bg-[#CC9200] text-white border-[#CC9200]'
+              : 'hover:bg-gray-50'
+          }`}
+        >
+          {page}
+        </button>
+      );
+    }
+
+    // Next page button
+    buttons.push(
+      <button
+        key="next"
+        onClick={() => goToPage(currentPage + 1)}
+        disabled={currentPage === totalPages}
+        className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 flex items-center gap-1"
+      >
+        <FaChevronRight className="text-xs" />
+      </button>
+    );
+
+    // Last page button
+    if (endPage < totalPages) {
+      buttons.push(
+        <button
+          key="last"
+          onClick={() => goToPage(totalPages)}
+          className="px-3 py-1 border rounded hover:bg-gray-50 flex items-center gap-1"
+        >
+          <FaStepForward className="text-xs" />
+        </button>
+      );
+    }
+
+    return buttons;
   };
 
   return (
@@ -164,25 +283,31 @@ export default function OrderHistoryPage() {
               <th className="p-2 text-left">Customer</th>
               <th className="p-2 text-center">Items</th>
               <th className="p-2 text-left">Invoice No</th>
+              <th className="p-2 text-left">Payment Type</th>
               <th className="p-2 text-right">Total</th>
               <th className="p-2 text-center">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {filteredResults.length === 0 ? (
+            {paginatedOrders.length === 0 ? (
               <tr>
-                <td colSpan={7} className="text-center text-gray-500 py-4">
-                  No matches found
+                <td colSpan={8} className="text-center text-gray-500 py-4">
+                  {filteredResults.length === 0 ? 'No orders found' : 'No matches found'}
                 </td>
               </tr>
             ) : (
-              filteredResults.map((order, idx) => (
-                <tr key={idx} className="border-t">
+              paginatedOrders.map((order, idx) => (
+                <tr key={idx} className="border-t hover:bg-gray-50">
                   <td className="p-2">{order.orderId || order._id}</td>
                   <td className="p-2">{order.date} {order.time}</td>
                   <td className="p-2">{order.customer.name}</td>
                   <td className="p-2 text-center">{order.items.length}</td>
                   <td className="p-2">{order.invoiceNumber}</td>
+                  <td className="p-2">
+                    <div className="flex items-center gap-1">
+                      {getPaymentType(order)}
+                    </div>
+                  </td>
                   <td className="p-2 text-right">₹{order.grandTotal.toLocaleString()}</td>
                   <td className="p-2 text-center space-x-2">
                     <button
@@ -216,9 +341,30 @@ export default function OrderHistoryPage() {
             )}
           </tbody>
         </table>
-        <p className="text-sm text-gray-500 mt-4">
-          Showing {filteredResults.length} of {orders.length} orders
-        </p>
+
+        {/* 📄 Pagination */}
+        {totalPages > 1 && (
+          <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4">
+            <div className="text-sm text-gray-600">
+              Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredResults.length)} of {filteredResults.length} orders
+            </div>
+            
+            <div className="flex flex-wrap gap-2 justify-center">
+              {renderPaginationButtons()}
+            </div>
+
+            <div className="text-sm text-gray-600">
+              Page {currentPage} of {totalPages}
+            </div>
+          </div>
+        )}
+
+        {/* 📊 Summary when no pagination */}
+        {totalPages <= 1 && (
+          <p className="text-sm text-gray-500 mt-4">
+            Showing {filteredResults.length} of {orders.length} orders
+          </p>
+        )}
       </div>
 
       {/* 🔁 Return Modal */}

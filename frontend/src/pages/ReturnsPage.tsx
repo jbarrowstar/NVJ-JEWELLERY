@@ -1,9 +1,13 @@
 import Layout from '../components/Layout';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   FaSearch,
   FaCalendarAlt,
-  FaUndoAlt
+  FaUndoAlt,
+  FaChevronLeft,
+  FaChevronRight,
+  FaStepBackward,
+  FaStepForward
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import Fuse from 'fuse.js';
@@ -37,6 +41,8 @@ export default function ReturnsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
   const [fuse, setFuse] = useState<Fuse<ReturnEntry> | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 30;
 
   useEffect(() => {
     fetch('http://localhost:3001/api/returns')
@@ -64,16 +70,16 @@ export default function ReturnsPage() {
       });
   }, []);
 
-  const filteredByDate = returns.filter((r) => {
+  const filteredByDate = useMemo(() => returns.filter((r) => {
     if (!selectedDate) return true;
     const rawDate = r.returnDate || r.date;
     if (!rawDate) return false;
     const [day, month, year] = rawDate.split('/');
     const normalized = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
     return normalized === selectedDate;
-  });
+  }), [returns, selectedDate]);
 
-  const filteredResults = (() => {
+  const filteredResults = useMemo(() => {
     if (!fuse) return filteredByDate;
     if (searchTerm.trim()) {
       const matches = fuse
@@ -83,7 +89,105 @@ export default function ReturnsPage() {
       return matches.filter((entry) => filteredByDate.includes(entry));
     }
     return filteredByDate;
-  })();
+  }, [fuse, searchTerm, filteredByDate]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredResults.length / itemsPerPage);
+  const paginatedReturns = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredResults.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredResults, currentPage, itemsPerPage]);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedDate]);
+
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
+
+  const renderPaginationButtons = () => {
+    const buttons = [];
+    const maxVisiblePages = 5;
+    
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    // Adjust start page if we're near the end
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    // First page button
+    if (startPage > 1) {
+      buttons.push(
+        <button
+          key="first"
+          onClick={() => goToPage(1)}
+          className="px-3 py-1 border rounded hover:bg-gray-50 flex items-center gap-1"
+        >
+          <FaStepBackward className="text-xs" />
+        </button>
+      );
+    }
+
+    // Previous page button
+    buttons.push(
+      <button
+        key="prev"
+        onClick={() => goToPage(currentPage - 1)}
+        disabled={currentPage === 1}
+        className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 flex items-center gap-1"
+      >
+        <FaChevronLeft className="text-xs" />
+      </button>
+    );
+
+    // Page number buttons
+    for (let page = startPage; page <= endPage; page++) {
+      buttons.push(
+        <button
+          key={page}
+          onClick={() => goToPage(page)}
+          className={`px-3 py-1 border rounded ${
+            currentPage === page
+              ? 'bg-red-600 text-white border-red-600'
+              : 'hover:bg-gray-50'
+          }`}
+        >
+          {page}
+        </button>
+      );
+    }
+
+    // Next page button
+    buttons.push(
+      <button
+        key="next"
+        onClick={() => goToPage(currentPage + 1)}
+        disabled={currentPage === totalPages}
+        className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 flex items-center gap-1"
+      >
+        <FaChevronRight className="text-xs" />
+      </button>
+    );
+
+    // Last page button
+    if (endPage < totalPages) {
+      buttons.push(
+        <button
+          key="last"
+          onClick={() => goToPage(totalPages)}
+          className="px-3 py-1 border rounded hover:bg-gray-50 flex items-center gap-1"
+        >
+          <FaStepForward className="text-xs" />
+        </button>
+      );
+    }
+
+    return buttons;
+  };
 
   return (
     <Layout>
@@ -130,16 +234,16 @@ export default function ReturnsPage() {
             </tr>
           </thead>
           <tbody>
-            {filteredResults.length === 0 ? (
+            {paginatedReturns.length === 0 ? (
               <tr>
                 <td colSpan={8} className="text-center text-gray-500 py-4">
-                  No matches found
+                  {filteredResults.length === 0 ? 'No returns found' : 'No matches found'}
                 </td>
               </tr>
             ) : (
-              filteredResults.map((entry, idx) => (
-                <tr key={idx} className="border-t">
-                  <td className="p-2">{entry.orderId || entry._id || '—'}</td>
+              paginatedReturns.map((entry, idx) => (
+                <tr key={idx} className="border-t hover:bg-gray-50">
+                  <td className="p-2 font-medium">{entry.orderId || entry._id || '—'}</td>
                   <td className="p-2">
                     {entry.returnDate || entry.date || '—'} {entry.returnTime || entry.time || ''}
                   </td>
@@ -149,7 +253,7 @@ export default function ReturnsPage() {
                     {entry.items?.length ?? '—'} item{entry.items?.length > 1 ? 's' : ''}
                   </td>
                   <td className="p-2">{entry.returnType || '—'}</td>
-                  <td className="p-2 text-right">
+                  <td className="p-2 text-right font-semibold">
                     ₹{entry.grandTotal !== undefined ? entry.grandTotal.toLocaleString() : '—'}
                   </td>
                   <td className="p-2 text-center">
@@ -168,9 +272,30 @@ export default function ReturnsPage() {
             )}
           </tbody>
         </table>
-        <p className="text-sm text-gray-500 mt-4">
-          Showing {filteredResults.length} of {returns.length} returns
-        </p>
+
+        {/* 📄 Pagination */}
+        {totalPages > 1 && (
+          <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4">
+            <div className="text-sm text-gray-600">
+              Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredResults.length)} of {filteredResults.length} returns
+            </div>
+            
+            <div className="flex flex-wrap gap-2 justify-center">
+              {renderPaginationButtons()}
+            </div>
+
+            <div className="text-sm text-gray-600">
+              Page {currentPage} of {totalPages}
+            </div>
+          </div>
+        )}
+
+        {/* 📊 Summary when no pagination */}
+        {totalPages <= 1 && (
+          <p className="text-sm text-gray-500 mt-4">
+            Showing {filteredResults.length} of {returns.length} returns
+          </p>
+        )}
       </div>
     </Layout>
   );

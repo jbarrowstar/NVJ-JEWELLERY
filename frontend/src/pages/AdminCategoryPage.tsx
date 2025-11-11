@@ -206,7 +206,7 @@ export default function AdminCategoryPage() {
         <div className="flex gap-2">
           <button
             onClick={refreshStats}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 flex items-center gap-2 text-sm"
+            className="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700 flex items-center gap-2 text-sm"
           >
             Refresh Stats
           </button>
