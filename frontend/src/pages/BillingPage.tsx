@@ -328,18 +328,163 @@ export default function BillingPage() {
   );
 
   const handleDownloadPDF = () => {
-    if (!invoiceRef.current) return;
+    // Create a completely new HTML structure with basic styling
+    const createPDFContent = () => {
+      const container = document.createElement('div');
+      container.style.fontFamily = 'Arial, sans-serif';
+      container.style.fontSize = '12px';
+      container.style.color = '#000000';
+      container.style.backgroundColor = '#ffffff';
+      container.style.padding = '20px';
+      container.style.width = '210mm'; // A4 width
 
-    const element = invoiceRef.current.cloneNode(true) as HTMLElement;
+      // Add company header
+      const header = document.createElement('div');
+      header.style.textAlign = 'center';
+      header.style.marginBottom = '20px';
+      header.style.borderBottom = '2px solid #000';
+      header.style.paddingBottom = '10px';
+      header.innerHTML = `
+        <h1 style="margin: 0; font-size: 24px; color: #000;">NIRVAHA JEWELS</h1>
+        <p style="margin: 5px 0; font-size: 14px; color: #666;">Invoice</p>
+      `;
+      container.appendChild(header);
 
-    // Remove unsupported color functions
-    element.querySelectorAll('*').forEach((el) => {
-      const style = window.getComputedStyle(el);
-      if (style.color.includes('oklch') || style.backgroundColor.includes('oklch')) {
-        (el as HTMLElement).style.color = '#000';
-        (el as HTMLElement).style.backgroundColor = '#fff';
+      // Add order info in two columns
+      const infoSection = document.createElement('div');
+      infoSection.style.display = 'flex';
+      infoSection.style.justifyContent = 'space-between';
+      infoSection.style.marginBottom = '20px';
+      infoSection.style.gap = '20px';
+
+      // Order Information
+      const orderInfo = document.createElement('div');
+      orderInfo.style.flex = '1';
+      orderInfo.innerHTML = `
+        <h3 style="margin: 0 0 10px 0; font-size: 16px; border-bottom: 1px solid #000; padding-bottom: 5px;">Order Information</h3>
+        <p style="margin: 5px 0;"><strong>Order ID:</strong> ${lastOrder?.orderId || '—'}</p>
+        <p style="margin: 5px 0;"><strong>Invoice No:</strong> ${lastOrder?.invoiceNumber || '—'}</p>
+        <p style="margin: 5px 0;"><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+        <p style="margin: 5px 0;"><strong>Time:</strong> ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+      `;
+
+      // Customer Information
+      const customerInfo = document.createElement('div');
+      customerInfo.style.flex = '1';
+      customerInfo.innerHTML = `
+        <h3 style="margin: 0 0 10px 0; font-size: 16px; border-bottom: 1px solid #000; padding-bottom: 5px;">Customer Information</h3>
+        <p style="margin: 5px 0;"><strong>Name:</strong> ${lastOrder?.customer?.name || '—'}</p>
+        <p style="margin: 5px 0;"><strong>Phone:</strong> ${lastOrder?.customer?.phone || '—'}</p>
+        <p style="margin: 5px 0;"><strong>Email:</strong> ${lastOrder?.customer?.email || '—'}</p>
+      `;
+
+      infoSection.appendChild(orderInfo);
+      infoSection.appendChild(customerInfo);
+      container.appendChild(infoSection);
+
+      // Add items table
+      const tableSection = document.createElement('div');
+      tableSection.style.marginBottom = '20px';
+      
+      const table = document.createElement('table');
+      table.style.width = '100%';
+      table.style.borderCollapse = 'collapse';
+      table.style.marginBottom = '10px';
+      
+      // Table header
+      const thead = document.createElement('thead');
+      thead.innerHTML = `
+        <tr style="background-color: #f5f5f5;">
+          <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold;">Product</th>
+          <th style="border: 1px solid #000; padding: 10px; text-align: right; font-weight: bold;">Price</th>
+          <th style="border: 1px solid #000; padding: 10px; text-align: center; font-weight: bold;">Qty</th>
+          <th style="border: 1px solid #000; padding: 10px; text-align: right; font-weight: bold;">Subtotal</th>
+        </tr>
+      `;
+      table.appendChild(thead);
+
+      // Table body
+      const tbody = document.createElement('tbody');
+      cart.forEach(item => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td style="border: 1px solid #000; padding: 8px;">${item.name}</td>
+          <td style="border: 1px solid #000; padding: 8px; text-align: right;">₹${item.price.toLocaleString()}</td>
+          <td style="border: 1px solid #000; padding: 8px; text-align: center;">${item.qty}</td>
+          <td style="border: 1px solid #000; padding: 8px; text-align: right;">₹${(item.price * item.qty).toLocaleString()}</td>
+        `;
+        tbody.appendChild(row);
+      });
+      table.appendChild(tbody);
+      tableSection.appendChild(table);
+      container.appendChild(tableSection);
+
+      // Add payment summary
+      const summarySection = document.createElement('div');
+      summarySection.style.border = '1px solid #000';
+      summarySection.style.padding = '15px';
+      summarySection.style.backgroundColor = '#f9f9f9';
+      summarySection.style.marginBottom = '20px';
+
+      summarySection.innerHTML = `
+        <h3 style="margin: 0 0 15px 0; font-size: 16px; border-bottom: 1px solid #000; padding-bottom: 5px;">Payment Summary</h3>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+          <span>Subtotal:</span>
+          <span>₹${subtotal.toLocaleString()}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+          <span>Discount:</span>
+          <span>- ₹${appliedDiscount.toLocaleString()}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+          <span>Tax (${appliedTaxRate}%):</span>
+          <span>₹${taxAmount.toLocaleString()}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 16px; border-top: 1px solid #000; padding-top: 10px; margin-top: 10px;">
+          <span>Grand Total:</span>
+          <span>₹${grandTotal.toLocaleString()}</span>
+        </div>
+      `;
+      container.appendChild(summarySection);
+
+      // Add payment methods
+      if (lastOrder?.paymentMethods?.length > 0) {
+        const paymentSection = document.createElement('div');
+        paymentSection.style.marginBottom = '20px';
+        paymentSection.innerHTML = `
+          <h3 style="margin: 0 0 10px 0; font-size: 16px; border-bottom: 1px solid #000; padding-bottom: 5px;">Payment Methods</h3>
+          ${lastOrder.paymentMethods.map((payment: PaymentDetail) => `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+              <span>${payment.method}:</span>
+              <span>₹${payment.amount.toLocaleString()}</span>
+            </div>
+          `).join('')}
+          <div style="display: flex; justify-content: space-between; font-weight: bold; border-top: 1px solid #000; padding-top: 8px; margin-top: 8px;">
+            <span>Total Paid:</span>
+            <span>₹${lastOrder.paymentMethods.reduce((sum: number, p: PaymentDetail) => sum + p.amount, 0).toLocaleString()}</span>
+          </div>
+        `;
+        container.appendChild(paymentSection);
       }
-    });
+
+      // Add footer
+      const footer = document.createElement('div');
+      footer.style.textAlign = 'center';
+      footer.style.marginTop = '30px';
+      footer.style.paddingTop = '10px';
+      footer.style.borderTop = '1px solid #000';
+      footer.style.fontSize = '10px';
+      footer.style.color = '#666';
+      footer.innerHTML = `
+        <p style="margin: 5px 0;">Thank you for your business!</p>
+        <p style="margin: 5px 0;">Nirvaha Jewels • Contact: +91 XXXXXXXXXX</p>
+      `;
+      container.appendChild(footer);
+
+      return container;
+    };
+
+    const pdfContent = createPDFContent();
 
     html2pdf()
       .set({
@@ -349,6 +494,7 @@ export default function BillingPage() {
           scale: 2,
           useCORS: true,
           logging: false,
+          backgroundColor: '#ffffff'
         },
         jsPDF: {
           unit: 'mm',
@@ -356,8 +502,12 @@ export default function BillingPage() {
           orientation: 'portrait',
         },
       })
-      .from(element)
-      .save();
+      .from(pdfContent)
+      .save()
+      .catch((err) => {
+        console.error('PDF generation failed:', err);
+        toast.error('Failed to generate PDF. Please try printing instead.');
+      });
   };
 
   const resetOrder = () => {

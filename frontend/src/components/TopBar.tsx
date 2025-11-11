@@ -13,12 +13,6 @@ export default function TopBar({
         <h1 className="text-xl font-bold text-yellow-600">NIRVAHA</h1>
       </div>
 
-      <input
-        type="text"
-        placeholder="Search products, customers..."
-        className="hidden sm:block border px-3 py-1 rounded w-1/2"
-      />
-
       <div className="flex items-center gap-4">
         <button
           onClick={() => setShowConfirm(true)}
