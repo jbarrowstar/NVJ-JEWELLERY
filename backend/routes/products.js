@@ -6,64 +6,116 @@ const { getNextSequence } = require('../utils/counterHelper');
 
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
+const { S3Client, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { Upload } = require('@aws-sdk/lib-storage');
 
-// Ensure uploads folder exists
-const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
-if (!fs.existsSync(UPLOADS_DIR)) {
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-}
+// ensure env loaded at app entry; safe to call here as well
+require('dotenv').config();
 
-// Multer storage and filter
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
-  filename: (req, file, cb) => {
-    // make filename safer
-    const safeName = file.originalname.replace(/\s+/g, '_').replace(/[^A-Za-z0-9_\-\.]/g, '');
-    cb(null, `${Date.now()}-${safeName}`);
+// ----------------------
+// S3 client
+// ----------------------
+const s3 = new S3Client({
+  region: process.env.AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   },
 });
 
+// Multer memory storage + validation
+
+const allowedExt = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif']);
 const fileFilter = (req, file, cb) => {
-  const allowed = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
-  const ext = path.extname(file.originalname).toLowerCase();
-  if (allowed.includes(ext)) cb(null, true);
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  if (allowedExt.has(ext)) cb(null, true);
   else cb(new Error('Unsupported file type'), false);
 };
 
-const upload = multer({
-  storage,
+const uploadMemory = multer({
+  storage: multer.memoryStorage(),
   fileFilter,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  limits: { fileSize: 5 * 1024 * 1024 }, 
 });
 
-// Helper: yyyymm and sanitize prefix
-const getYyyymm = (d = new Date()) => {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  return `${y}${m}`;
+// Helpers
+
+const safeKey = (originalName) => {
+  const base = (originalName || 'upload')
+    .replace(/\s+/g, '_')
+    .replace(/[^A-Za-z0-9_\-\.]/g, '');
+  const datePrefix = new Date().toISOString().slice(0, 10);
+  const ts = Date.now();
+  return `uploads/${datePrefix}/${ts}-${base}`;
 };
 
-const sanitizeCategoryPrefix = (category = '') => {
-  const clean = String(category || '').replace(/[^A-Za-z]/g, '').toUpperCase();
-  const prefix = clean.slice(0, 3);
-  return prefix.length === 3 ? prefix : (prefix + 'GEN').slice(0, 3); // fallback / pad
-};
+async function uploadBufferToS3({ buffer, key, contentType }) {
+  const uploader = new Upload({
+    client: s3,
+    params: {
+      Bucket: process.env.AWS_S3_BUCKET,
+      Key: key,
+      Body: buffer,
+      ContentType: contentType || 'application/octet-stream',
+      ACL: 'private',
+    },
+    queueSize: 4,
+    partSize: 5 * 1024 * 1024,
+    leavePartsOnError: false,
+  });
+  await uploader.done();
+  return {
+    key,
+    url: `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`,
+  };
+}
 
-// ----------------------
-// Image upload endpoint
-// ----------------------
-router.post('/upload', upload.single('image'), (req, res) => {
+// Single image upload (field: image)
+router.post('/upload', uploadMemory.single('image'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
-    // serve as /uploads/<filename>
-    const imageUrl = `/uploads/${req.file.filename}`;
-    return res.json({ success: true, imageUrl });
+    const key = safeKey(req.file.originalname);
+    const { url } = await uploadBufferToS3({
+      buffer: req.file.buffer,
+      key,
+      contentType: req.file.mimetype,
+    });
+    // keep shape compatible with your existing client usage
+    return res.json({ success: true, imageUrl: url, key });
   } catch (err) {
     console.error('Upload error:', err);
     return res.status(500).json({ success: false, message: 'Image upload failed' });
+  }
+});
+
+// Multiple images upload (field: images, up to 10)
+router.post('/upload-multiple', uploadMemory.array('images', 10), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ success: false, message: 'No files uploaded' });
+    }
+    // upload in parallel
+    const uploads = await Promise.all(
+      req.files.map((f) => {
+        const key = safeKey(f.originalname);
+        return uploadBufferToS3({
+          buffer: f.buffer,
+          key,
+          contentType: f.mimetype,
+        });
+      })
+    );
+    // Return arrays matching each file
+    return res.json({
+      success: true,
+      images: uploads.map(u => ({ imageUrl: u.url, key: u.key })),
+      count: uploads.length,
+    });
+  } catch (err) {
+    console.error('Multi upload error:', err);
+    return res.status(500).json({ success: false, message: 'Images upload failed' });
   }
 });
 
@@ -110,32 +162,38 @@ router.get('/sku/:sku', async (req, res) => {
 });
 
 // ----------------------
-// Create product (atomic SKU using Counter)
+// Create product (unchanged logic; pass image URL you got from upload)
 // ----------------------
+const getYyyymm = (d = new Date()) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${y}${m}`;
+};
+
+const sanitizeCategoryPrefix = (category = '') => {
+  const clean = String(category || '').replace(/[^A-Za-z]/g, '').toUpperCase();
+  const prefix = clean.slice(0, 3);
+  return prefix.length === 3 ? prefix : (prefix + 'GEN').slice(0, 3);
+};
+
 router.post('/', async (req, res) => {
   try {
     const {
       name, category, metal, weight, purity, makingCharges, wastagePercent, wastage, stonePrice, price, description, image,
     } = req.body;
 
-    // basic validation
     if (!name || !category) {
       return res.status(400).json({ success: false, message: 'Name and category are required' });
     }
 
-    // Build SKU parts
     const prefix = sanitizeCategoryPrefix(category);
     const yyyymm = getYyyymm();
-
-    // Use a counter document per prefix+yyyymm for atomic serial increments
     const counterName = `SKU_${prefix}_${yyyymm}`;
-    const seq = await getNextSequence(counterName); // atomic increment in DB
+    const seq = await getNextSequence(counterName);
     const serial = String(seq).padStart(4, '0');
     const sku = `${prefix}-${yyyymm}-${serial}`;
-
     const qrCode = `QR-${sku}`;
 
-    // Compose product payload (allow frontend to override price but we keep price as number)
     const payload = {
       name,
       category,
@@ -147,7 +205,7 @@ router.post('/', async (req, res) => {
       stonePrice: stonePrice ?? 0,
       price: price ?? 0,
       description: description || '',
-      image: image || '',
+      image: image || '', // client sets this from /upload or first of /upload-multiple
       sku,
       qrCode,
     };
@@ -163,13 +221,11 @@ router.post('/', async (req, res) => {
 });
 
 // ----------------------
-// Update product
+// Update product (unchanged logic)
 // ----------------------
 router.put('/:id', async (req, res) => {
   try {
-    // Do not auto-change SKU on update. If client explicitly wants to change SKU they can send it.
     const updates = { ...req.body };
-
     const updated = await Product.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true });
     if (!updated) return res.status(404).json({ success: false, message: 'Product not found' });
     return res.json({ success: true, product: updated });
@@ -180,20 +236,24 @@ router.put('/:id', async (req, res) => {
 });
 
 // ----------------------
-// Delete product (and try to remove image file)
+// Delete product: delete S3 object if the image is an S3 URL
 // ----------------------
 router.delete('/:id', async (req, res) => {
   try {
     const prod = await Product.findById(req.params.id);
     if (!prod) return res.status(404).json({ success: false, message: 'Product not found' });
 
-    // If product has an image that lives under /uploads, remove it (best-effort)
-    if (prod.image && typeof prod.image === 'string' && prod.image.startsWith('/uploads/')) {
-      const filename = prod.image.replace('/uploads/', '');
-      const filePath = path.join(UPLOADS_DIR, filename);
-      fs.unlink(filePath, (err) => {
-        if (err && err.code !== 'ENOENT') console.error('Failed to delete image file:', err);
-      });
+    // best-effort: if image looks like S3 URL, delete object
+    if (prod.image && typeof prod.image === 'string' && prod.image.includes('.s3.')) {
+      const key = new URL(prod.image).pathname.replace(/^\//, '');
+      try {
+        await s3.send(new DeleteObjectCommand({
+          Bucket: process.env.AWS_S3_BUCKET,
+          Key: key,
+        }));
+      } catch (e) {
+        console.error('Failed to delete S3 object:', e);
+      }
     }
 
     await Product.findByIdAndDelete(req.params.id);
@@ -204,7 +264,9 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-
+// ----------------------
+// Mark sold (unchanged logic)
+// ----------------------
 router.put('/:sku/mark-sold', async (req, res) => {
   try {
     await Product.findOneAndUpdate({ sku: req.params.sku }, { available: false });

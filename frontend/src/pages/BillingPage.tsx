@@ -68,6 +68,8 @@ export default function BillingPage() {
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerNotes, setCustomerNotes] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+  const [emailError, setEmailError] = useState('');
 
   const [showSelectCustomerModal, setShowSelectCustomerModal] = useState(false);
   const [customerList, setCustomerList] = useState<Customer[]>([]);
@@ -81,6 +83,52 @@ export default function BillingPage() {
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
 
   const [lastOrder, setLastOrder] = useState<any>(null);
+
+  // Phone number validation
+  const validatePhone = (phone: string): boolean => {
+    const phoneRegex = /^[6-9]\d{9}$/; // Indian mobile numbers starting with 6-9 and 10 digits
+    return phoneRegex.test(phone.replace(/\D/g, '')); // Remove non-digits before testing
+  };
+
+  // Email validation
+  const validateEmail = (email: string): boolean => {
+    if (!email.trim()) return true; // Empty email is allowed
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  // Format phone number for display
+  const formatPhone = (phone: string): string => {
+    const cleaned = phone.replace(/\D/g, '');
+    if (cleaned.length <= 3) return cleaned;
+    if (cleaned.length <= 6) return `${cleaned.slice(0, 3)} ${cleaned.slice(3)}`;
+    if (cleaned.length <= 10) return `${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)} ${cleaned.slice(6)}`;
+    return cleaned;
+  };
+
+  // Handle phone input change with validation
+  const handlePhoneChange = (value: string) => {
+    const formatted = formatPhone(value);
+    setCustomerPhone(formatted);
+    
+    const cleaned = value.replace(/\D/g, '');
+    if (cleaned && !validatePhone(cleaned)) {
+      setPhoneError('Please enter a valid 10-digit mobile number');
+    } else {
+      setPhoneError('');
+    }
+  };
+
+  // Handle email input change with validation
+  const handleEmailChange = (value: string) => {
+    setCustomerEmail(value);
+    
+    if (value.trim() && !validateEmail(value)) {
+      setEmailError('Please enter a valid email address');
+    } else {
+      setEmailError('');
+    }
+  };
 
   useEffect(() => {
     fetchProducts()
@@ -187,56 +235,75 @@ export default function BillingPage() {
   };
 
   const handleSaveCustomer = async () => {
-  try {
-    const trimmedName = customerName.trim();
-    const trimmedPhone = customerPhone.trim();
+    try {
+      const trimmedName = customerName.trim();
+      const cleanedPhone = customerPhone.replace(/\D/g, ''); // Remove all non-digits
+      const trimmedEmail = customerEmail.trim();
 
-    if (!trimmedName || !trimmedPhone) {
-      toast.error('Name and phone number are required.');
-      return;
-    }
-
-    // Fetch current customers from API to check for duplicates
-    const customersResponse = await fetch('http://localhost:3001/api/customers');
-    const customersData = await customersResponse.json();
-    
-    if (customersData.success) {
-      const isDuplicatePhone = customersData.customers.some(
-        (c: Customer) => c.phone.trim() === trimmedPhone
-      );
-
-      if (isDuplicatePhone) {
-        toast.error('Customer with this phone number already exists.');
+      // Validation
+      if (!trimmedName) {
+        toast.error('Customer name is required.');
         return;
       }
-    }
 
-    const customer = {
-      name: trimmedName,
-      email: customerEmail.trim(),
-      phone: trimmedPhone,
-      notes: customerNotes.trim(),
-    };
+      if (!cleanedPhone) {
+        toast.error('Phone number is required.');
+        return;
+      }
 
-    await saveCustomer(customer);
-    toast.success('Customer saved!');
-    setShowCustomerModal(false);
-    setCustomerName('');
-    setCustomerEmail('');
-    setCustomerPhone('');
-    setCustomerNotes('');
-    
-    // Refresh customer list
-    const updatedCustomers = await fetch('http://localhost:3001/api/customers');
-    const updatedData = await updatedCustomers.json();
-    if (updatedData.success) {
-      setCustomerList(updatedData.customers);
+      if (!validatePhone(cleanedPhone)) {
+        toast.error('Please enter a valid 10-digit mobile number.');
+        return;
+      }
+
+      if (trimmedEmail && !validateEmail(trimmedEmail)) {
+        toast.error('Please enter a valid email address.');
+        return;
+      }
+
+      // Fetch current customers from API to check for duplicates
+      const customersResponse = await fetch('http://localhost:3001/api/customers');
+      const customersData = await customersResponse.json();
+      
+      if (customersData.success) {
+        const isDuplicatePhone = customersData.customers.some(
+          (c: Customer) => c.phone.replace(/\D/g, '') === cleanedPhone
+        );
+
+        if (isDuplicatePhone) {
+          toast.error('Customer with this phone number already exists.');
+          return;
+        }
+      }
+
+      const customer = {
+        name: trimmedName,
+        email: trimmedEmail,
+        phone: cleanedPhone, // Store without formatting
+        notes: customerNotes.trim(),
+      };
+
+      await saveCustomer(customer);
+      toast.success('Customer saved successfully!');
+      setShowCustomerModal(false);
+      setCustomerName('');
+      setCustomerEmail('');
+      setCustomerPhone('');
+      setCustomerNotes('');
+      setPhoneError('');
+      setEmailError('');
+      
+      // Refresh customer list
+      const updatedCustomers = await fetch('http://localhost:3001/api/customers');
+      const updatedData = await updatedCustomers.json();
+      if (updatedData.success) {
+        setCustomerList(updatedData.customers);
+      }
+    } catch (err) {
+      console.error('Customer save error:', err);
+      toast.error('Server error while saving customer');
     }
-  } catch (err) {
-    console.error('Customer save error:', err);
-    toast.error('Server error');
-  }
-};
+  };
 
   const handleConfirmPayment = async () => {
     if (cart.length === 0 || !customerName.trim() || !customerPhone.trim() || selectedPaymentMethods.length === 0) {
@@ -625,35 +692,44 @@ export default function BillingPage() {
             <div className="bg-white rounded shadow-sm p-4 space-y-4">
               <SectionHeader icon={<FaShoppingCart />} title="Items in Cart" />
               <div className="overflow-x-auto">
-                <table className="w-full border">
+                <table className="w-full border border-gray-300">
                   <thead className="bg-gray-200">
                     <tr>
-                      <th className="p-2 text-left">Product</th>
-                      <th className="p-2">Price</th>
-                      <th className="p-2">Qty</th>
-                      <th className="p-2">Subtotal</th>
-                      <th className="p-2">Action</th>
+                      <th className="p-3 text-left font-semibold text-gray-700 min-w-80">Product</th>
+                      <th className="p-3 text-center font-semibold text-gray-700 min-w-24">Price</th>
+                      <th className="p-3 text-center font-semibold text-gray-700 min-w-20">Qty</th>
+                      <th className="p-3 text-center font-semibold text-gray-700 min-w-28">Subtotal</th>
+                      <th className="p-3 text-center font-semibold text-gray-700 min-w-20">Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {cart.map((item, idx) => (
-                      <tr key={idx} className="border-t">
-                        <td className="p-2">{item.name}</td>
-                        <td className="p-2">₹{item.price.toLocaleString()}</td>
-                        <td className="p-2">{item.qty}</td>
-                        <td className="p-2">
-                          ₹{(item.price * item.qty).toLocaleString()}
-                        </td>
-                        <td className="p-2">
-                          <button
-                            onClick={() => handleRemoveItem(idx)}
-                            className="text-red-500"
-                          >
-                            <AiOutlineDelete />
-                          </button>
+                    {cart.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="p-4 text-center text-gray-500">
+                          No items in cart
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      cart.map((item, idx) => (
+                        <tr key={idx} className="border-t border-gray-200 hover:bg-gray-50">
+                          <td className="p-3 text-gray-800 font-medium">{item.name}</td>
+                          <td className="p-3 text-center text-gray-700">₹{item.price.toLocaleString()}</td>
+                          <td className="p-3 text-center text-gray-700">{item.qty}</td>
+                          <td className="p-3 text-center text-gray-700 font-semibold">
+                            ₹{(item.price * item.qty).toLocaleString()}
+                          </td>
+                          <td className="p-3 text-center">
+                            <button
+                              onClick={() => handleRemoveItem(idx)}
+                              className="text-red-500 hover:text-red-700 transition-colors duration-200"
+                              title="Remove item"
+                            >
+                              <AiOutlineDelete size={18} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -681,13 +757,13 @@ export default function BillingPage() {
               </div>
               <div className="flex gap-2 pt-2">
                 <button
-                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 py-2 rounded"
+                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 py-2 rounded transition-colors duration-200"
                   onClick={() => setShowSelectCustomerModal(true)}
                 >
                   Select Customer
                 </button>
                 <button
-                  className="flex-1 bg-[#CC9200] hover:bg-yellow-500 text-white py-2 rounded"
+                  className="flex-1 bg-[#CC9200] hover:bg-yellow-500 text-white py-2 rounded transition-colors duration-200"
                   onClick={() => setShowCustomerModal(true)}
                 >
                   Add New Customer
@@ -710,7 +786,7 @@ export default function BillingPage() {
                 />
                 <button
                   onClick={applyDiscount}
-                  className="bg-black text-white px-4 py-2 rounded"
+                  className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800 transition-colors duration-200"
                 >
                   Apply Discount
                 </button>
@@ -720,16 +796,16 @@ export default function BillingPage() {
               <div className="flex gap-2">
                 <button
                   onClick={() => setDiscountType('%')}
-                  className={`px-4 py-1 rounded w-12 text-center font-bold ${
-                    discountType === '%' ? 'bg-black text-white' : 'bg-white border'
+                  className={`px-4 py-1 rounded w-12 text-center font-bold transition-colors duration-200 ${
+                    discountType === '%' ? 'bg-black text-white' : 'bg-white border border-gray-300 hover:bg-gray-100'
                   }`}
                 >
                   %
                 </button>
                 <button
                   onClick={() => setDiscountType('₹')}
-                  className={`px-4 py-1 rounded w-12 text-center font-bold ${
-                    discountType === '₹' ? 'bg-black text-white' : 'bg-white border'
+                  className={`px-4 py-1 rounded w-12 text-center font-bold transition-colors duration-200 ${
+                    discountType === '₹' ? 'bg-black text-white' : 'bg-white border border-gray-300 hover:bg-gray-100'
                   }`}
                 >
                   ₹
@@ -748,7 +824,7 @@ export default function BillingPage() {
                   />
                   <button
                     onClick={applyTax}
-                    className="bg-black text-white px-4 py-2 rounded"
+                    className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800 transition-colors duration-200"
                   >
                     Apply Tax
                   </button>
@@ -776,7 +852,7 @@ export default function BillingPage() {
                 <span>₹{grandTotal.toLocaleString()}</span>
               </div>
               <button
-                className="w-full bg-[#CC9200] hover:bg-yellow-500 text-white py-2 rounded mt-4"
+                className="w-full bg-[#CC9200] hover:bg-yellow-500 text-white py-2 rounded mt-4 transition-colors duration-200"
                 onClick={() => {
                   if (cart.length === 0) {
                     toast.error('Please add at least one item to the cart.');
@@ -801,7 +877,11 @@ export default function BillingPage() {
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#99A1AF]/90">
           <div className="bg-white rounded shadow-lg p-6 w-full max-w-md text-sm z-50 relative">
             <button
-              onClick={() => setShowCustomerModal(false)}
+              onClick={() => {
+                setShowCustomerModal(false);
+                setPhoneError('');
+                setEmailError('');
+              }}
               className="absolute top-4 right-4 text-gray-500 hover:text-red-500 text-xl"
               aria-label="Close"
             >
@@ -809,14 +889,61 @@ export default function BillingPage() {
             </button>
             <h2 className="text-lg font-semibold mb-4 text-center">Add New Customer</h2>
             <div className="space-y-3">
-              <input type="text" placeholder="Name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="w-full border p-2 rounded" />
-              <input type="tel" placeholder="Phone" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className="w-full border p-2 rounded" />
-              <input type="email" placeholder="Email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} className="w-full border p-2 rounded" />
-              <textarea placeholder="Notes" value={customerNotes} onChange={(e) => setCustomerNotes(e.target.value)} className="w-full border p-2 rounded resize-none" rows={3} />
+              <div>
+                <input 
+                  type="text" 
+                  placeholder="Name *" 
+                  value={customerName} 
+                  onChange={(e) => setCustomerName(e.target.value)} 
+                  className="w-full border p-2 rounded" 
+                />
+              </div>
+              <div>
+                <input 
+                  type="tel" 
+                  placeholder="Phone Number *" 
+                  value={customerPhone} 
+                  onChange={(e) => handlePhoneChange(e.target.value)} 
+                  className={`w-full border p-2 rounded ${phoneError ? 'border-red-500' : ''}`} 
+                  maxLength={12}
+                />
+                {phoneError && <p className="text-red-500 text-xs mt-1">{phoneError}</p>}
+              </div>
+              <div>
+                <input 
+                  type="email" 
+                  placeholder="Email" 
+                  value={customerEmail} 
+                  onChange={(e) => handleEmailChange(e.target.value)} 
+                  className={`w-full border p-2 rounded ${emailError ? 'border-red-500' : ''}`} 
+                />
+                {emailError && <p className="text-red-500 text-xs mt-1">{emailError}</p>}
+              </div>
+              <textarea 
+                placeholder="Notes" 
+                value={customerNotes} 
+                onChange={(e) => setCustomerNotes(e.target.value)} 
+                className="w-full border p-2 rounded resize-none" 
+                rows={3} 
+              />
             </div>
             <div className="flex justify-end gap-4 mt-6">
-              <button onClick={() => setShowCustomerModal(false)} className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Cancel</button>
-              <button onClick={handleSaveCustomer} className="px-4 py-2 bg-[#CC9200] text-white rounded hover:bg-yellow-500">Save Customer</button>
+              <button 
+                onClick={() => {
+                  setShowCustomerModal(false);
+                  setPhoneError('');
+                  setEmailError('');
+                }} 
+                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 transition-colors duration-200"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSaveCustomer} 
+                className="px-4 py-2 bg-[#CC9200] text-white rounded hover:bg-yellow-500 transition-colors duration-200"
+              >
+                Save Customer
+              </button>
             </div>
           </div>
         </div>
@@ -834,24 +961,40 @@ export default function BillingPage() {
               <FaTimes />
             </button>
             <h2 className="text-lg font-semibold mb-4 text-center">Select Customer</h2>
-            <input type="text" placeholder="Search Customer by name or phone" className="w-full border p-2 rounded mb-4" value={customerSearchTerm} onChange={(e) => setCustomerSearchTerm(e.target.value)} />
+            <input 
+              type="text" 
+              placeholder="Search Customer by name or phone" 
+              className="w-full border p-2 rounded mb-4" 
+              value={customerSearchTerm} 
+              onChange={(e) => setCustomerSearchTerm(e.target.value)} 
+            />
             <ul className="space-y-2 max-h-64 overflow-y-auto">
               {filteredCustomers.map((c, idx) => (
-                <li key={idx} className="border p-2 rounded flex justify-between items-center">
+                <li key={idx} className="border p-2 rounded flex justify-between items-center hover:bg-gray-50 transition-colors duration-200">
                   <div>
                     <p className="font-medium">{c.name}</p>
                     <p className="text-sm text-gray-600">{c.phone}</p>
                   </div>
-                  <button onClick={() => {
-                    setCustomerName(c.name);
-                    setCustomerPhone(c.phone);
-                    setCustomerEmail(c.email || '');
-                    setShowSelectCustomerModal(false);
-                  }} className="bg-[#CC9200] text-white px-3 py-1 rounded text-sm">Select</button>
+                  <button 
+                    onClick={() => {
+                      setCustomerName(c.name);
+                      setCustomerPhone(c.phone);
+                      setCustomerEmail(c.email || '');
+                      setShowSelectCustomerModal(false);
+                    }} 
+                    className="bg-[#CC9200] text-white px-3 py-1 rounded text-sm hover:bg-yellow-500 transition-colors duration-200"
+                  >
+                    Select
+                  </button>
                 </li>
               ))}
             </ul>
-            <button onClick={() => setShowSelectCustomerModal(false)} className="mt-4 w-full bg-gray-300 hover:bg-gray-400 py-2 rounded">Cancel</button>
+            <button 
+              onClick={() => setShowSelectCustomerModal(false)} 
+              className="mt-4 w-full bg-gray-300 hover:bg-gray-400 py-2 rounded transition-colors duration-200"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
@@ -980,7 +1123,7 @@ export default function BillingPage() {
                 </div>
                 
                 <button
-                  className="w-full bg-[#CC9200] hover:bg-yellow-500 text-white py-2 rounded mt-4"
+                  className="w-full bg-[#CC9200] hover:bg-yellow-500 text-white py-2 rounded mt-4 transition-colors duration-200"
                   onClick={handleConfirmPayment}
                   disabled={selectedPaymentMethods.length === 0 || totalPaid <= 0}
                 >
@@ -1117,18 +1260,18 @@ export default function BillingPage() {
 
             {/* Action Buttons */}
             <div className="flex justify-end gap-4 mt-6">
-              <button onClick={handleDownloadPDF} className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600">
+              <button onClick={handleDownloadPDF} className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition-colors duration-200">
                 Download Invoice
               </button>
               <button
                 onClick={handlePrint}
-                className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition-colors duration-200"
               >
                 Print Invoice
               </button>
               <button
                 onClick={resetOrder}
-                className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800"
+                className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 transition-colors duration-200"
               >
                 Start New Order
               </button>
