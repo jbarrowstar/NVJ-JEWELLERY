@@ -10,9 +10,7 @@ import {
   FaUser,
   FaBoxOpen,
   FaChevronLeft,
-  FaChevronRight,
-  FaStepBackward,
-  FaStepForward
+  FaChevronRight
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import Fuse from 'fuse.js';
@@ -175,26 +173,13 @@ export default function OrderHistoryPage() {
       startPage = Math.max(1, endPage - maxVisiblePages + 1);
     }
 
-    // First page button
-    if (startPage > 1) {
-      buttons.push(
-        <button
-          key="first"
-          onClick={() => goToPage(1)}
-          className="px-3 py-1 border rounded hover:bg-gray-50 flex items-center gap-1"
-        >
-          <FaStepBackward className="text-xs" />
-        </button>
-      );
-    }
-
     // Previous page button
     buttons.push(
       <button
         key="prev"
         onClick={() => goToPage(currentPage - 1)}
         disabled={currentPage === 1}
-        className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 flex items-center gap-1"
+        className="px-3 py-2 border border-gray-300 rounded-l disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 flex items-center gap-1 text-gray-600"
       >
         <FaChevronLeft className="text-xs" />
       </button>
@@ -206,10 +191,10 @@ export default function OrderHistoryPage() {
         <button
           key={page}
           onClick={() => goToPage(page)}
-          className={`px-3 py-1 border rounded ${
+          className={`px-3 py-2 border-t border-b border-gray-300 ${
             currentPage === page
-              ? 'bg-[#CC9200] text-white border-[#CC9200]'
-              : 'hover:bg-gray-50'
+              ? 'bg-[#1E40AF] text-white border-[#1E40AF]'
+              : 'text-gray-600 hover:bg-gray-50'
           }`}
         >
           {page}
@@ -223,24 +208,11 @@ export default function OrderHistoryPage() {
         key="next"
         onClick={() => goToPage(currentPage + 1)}
         disabled={currentPage === totalPages}
-        className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 flex items-center gap-1"
+        className="px-3 py-2 border border-gray-300 rounded-r disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 flex items-center gap-1 text-gray-600"
       >
         <FaChevronRight className="text-xs" />
       </button>
     );
-
-    // Last page button
-    if (endPage < totalPages) {
-      buttons.push(
-        <button
-          key="last"
-          onClick={() => goToPage(totalPages)}
-          className="px-3 py-1 border rounded hover:bg-gray-50 flex items-center gap-1"
-        >
-          <FaStepForward className="text-xs" />
-        </button>
-      );
-    }
 
     return buttons;
   };
@@ -314,7 +286,7 @@ export default function OrderHistoryPage() {
                       className="text-yellow-600 hover:text-yellow-700"
                       title="Print Invoice"
                       onClick={() => {
-                        setPrintOrder(order); // ✅ use already-loaded order
+                        setPrintOrder(order);
                         setTimeout(() => handlePrint(), 300);
                       }}
                     >
@@ -349,7 +321,7 @@ export default function OrderHistoryPage() {
               Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredResults.length)} of {filteredResults.length} orders
             </div>
             
-            <div className="flex flex-wrap gap-2 justify-center">
+            <div className="flex items-center justify-center">
               {renderPaginationButtons()}
             </div>
 
@@ -471,7 +443,7 @@ export default function OrderHistoryPage() {
                 }
 
                 const returnData = {
-                  orderId: returnOrder.orderId || returnOrder._id, // ✅ use formatted ID
+                  orderId: returnOrder.orderId || returnOrder._id,
                   invoiceNumber: returnOrder.invoiceNumber,
                   customer: returnOrder.customer,
                   items: returnOrder.items,
@@ -527,7 +499,6 @@ export default function OrderHistoryPage() {
           />
         </div>
       )}
-
     </>
   );
 }
