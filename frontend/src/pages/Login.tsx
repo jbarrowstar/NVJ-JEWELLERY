@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type KeyboardEvent } from 'react'; // type-only import
 import { loginUser } from '../services/authService';
 import { useNavigate } from 'react-router-dom';
 import { AiOutlineEye, AiOutlineEyeInvisible } from 'react-icons/ai';
@@ -9,22 +9,42 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleLogin = async () => {
-    const res = await loginUser({ email, password });
-    if (res.success) {
-      toast.success('Login successful!');
-      localStorage.setItem('userRole', res.user.role);
-      setTimeout(() => {
-        if (res.user.role === 'admin') {
-          navigate('/admin/dashboard');
-        } else {
-          navigate('/dashboard');
-        }
-      }, 1500);
-    } else {
-      toast.error('Invalid credentials');
+    if (!email || !password) {
+      toast.error('Please fill all fields');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await loginUser({ email, password });
+      if (res.success) {
+        toast.success('Login successful!');
+        localStorage.setItem('userRole', res.user?.role || 'staff');
+        setTimeout(() => {
+          if (res.user?.role === 'admin') {
+            navigate('/admin/dashboard');
+          } else {
+            navigate('/dashboard');
+          }
+        }, 1500);
+      } else {
+        toast.error('Invalid credentials');
+      }
+    } catch (error) {
+      toast.error('Login failed. Please try again.');
+      console.error('Login error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleKeyPress = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleLogin();
     }
   };
 
@@ -44,7 +64,8 @@ export default function Login() {
             type="email"
             placeholder="Email"
             value={email}
-            onChange={e => setEmail(e.target.value)}
+            onChange={(e) => setEmail(e.target.value)}
+            onKeyPress={handleKeyPress}
             className="w-full p-2 border rounded"
           />
           <div className="relative">
@@ -52,7 +73,8 @@ export default function Login() {
               type={showPassword ? 'text' : 'password'}
               placeholder="Password"
               value={password}
-              onChange={e => setPassword(e.target.value)}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyPress={handleKeyPress}
               className="w-full p-2 border rounded pr-10"
             />
             <span
@@ -66,9 +88,10 @@ export default function Login() {
         <div className="mt-6">
           <button
             onClick={handleLogin}
-            className="w-full bg-[#CC9200] hover:bg-yellow-500 text-white font-bold py-2 rounded"
+            disabled={loading}
+            className="w-full bg-[#CC9200] hover:bg-yellow-500 text-white font-bold py-2 rounded disabled:opacity-50"
           >
-            Login
+            {loading ? 'Logging in...' : 'Login'}
           </button>
         </div>
       </div>

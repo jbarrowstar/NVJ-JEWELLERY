@@ -12,49 +12,10 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
+import { fetchOrders, type Order } from '../services/orderService';
+import { fetchProducts, type Product } from '../services/productService';
 
 ChartJS.register(LineElement, BarElement, ArcElement, CategoryScale, LinearScale, PointElement, Tooltip, Legend);
-
-type OrderItem = {
-  name: string;
-  price: number;
-  qty: number;
-  sku: string;
-  category?: string;
-  metal?: string;
-  costPrice?: number;
-};
-
-type Order = {
-  _id: string;
-  orderId: string;
-  invoiceNumber: string;
-  customer: {
-    name: string;
-    phone: string;
-    email?: string;
-  };
-  paymentMode: string;
-  subtotal: number;
-  discount: number;
-  tax: number;
-  grandTotal: number;
-  date: string;
-  time: string;
-  items: OrderItem[];
-  createdAt: string;
-  status: 'completed' | 'refunded' | 'cancelled';
-};
-
-type Product = {
-  _id: string;
-  sku: string;
-  name: string;
-  costPrice: number;
-  price: number;
-  category: string;
-  metal: string;
-};
 
 type TimeRange = '7days' | '30days' | '90days' | '1year';
 
@@ -108,13 +69,10 @@ export default function AdminReportsPage() {
       try {
         setLoading(true);
         
-        const [ordersRes, productsRes] = await Promise.all([
-          fetch('http://localhost:3001/api/orders'),
-          fetch('http://localhost:3001/api/products')
+        const [ordersData, allProducts] = await Promise.all([
+          fetchOrders(),
+          fetchProducts()
         ]);
-
-        const ordersData = await ordersRes.json();
-        const productsData = await productsRes.json();
 
         if (!ordersData.success || !Array.isArray(ordersData.orders)) {
           console.error('Invalid orders data');
@@ -122,7 +80,6 @@ export default function AdminReportsPage() {
         }
 
         const allOrders: Order[] = ordersData.orders;
-        const allProducts: Product[] = productsData.products || productsData.data || [];
 
         // Create product map for cost lookup
         const productMap = new Map(allProducts.map(p => [p.sku, p]));
@@ -136,7 +93,12 @@ export default function AdminReportsPage() {
         
         setMetrics(currentMetrics);
         setPreviousMetrics(previousMetrics);
-        setTransactions(currentOrders.slice(0, 10));
+        
+        // Get only 5 most recent transactions
+        const recentTransactions = currentOrders
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, 5);
+        setTransactions(recentTransactions);
 
         // Calculate trends
         const trendData = calculateSalesTrend(currentOrders, productMap, timeRange);
@@ -147,7 +109,7 @@ export default function AdminReportsPage() {
         setPaymentMethods(paymentData);
 
         // Metal sales (revenue only, no profit)
-        const metalData = calculateMetalSales(currentOrders);
+        const metalData = calculateMetalSales(currentOrders, productMap);
         setMetalSales(metalData);
 
       } catch (err) {
@@ -186,30 +148,59 @@ export default function AdminReportsPage() {
         return { currentOrders: orders, previousOrders: [] };
     }
 
-    const currentOrders = orders.filter(order => 
-      new Date(order.createdAt) >= currentCutoff && new Date(order.createdAt) <= now
-    );
+    // Reset time to start of day for proper date comparison
+    currentCutoff.setHours(0, 0, 0, 0);
+    previousCutoff.setHours(0, 0, 0, 0);
+    now.setHours(23, 59, 59, 999);
+
+    const currentOrders = orders.filter(order => {
+      try {
+        const orderDate = new Date(order.createdAt);
+        return orderDate >= currentCutoff && orderDate <= now;
+      } catch {
+        return false;
+      }
+    });
     
-    const previousOrders = orders.filter(order => 
-      new Date(order.createdAt) >= previousCutoff && new Date(order.createdAt) < currentCutoff
-    );
+    const previousOrders = orders.filter(order => {
+      try {
+        const orderDate = new Date(order.createdAt);
+        return orderDate >= previousCutoff && orderDate < currentCutoff;
+      } catch {
+        return false;
+      }
+    });
 
     return { currentOrders, previousOrders };
   };
 
   const calculateMetrics = (orders: Order[], productMap: Map<string, Product>) => {
+    if (orders.length === 0) {
+      return {
+        revenue: 0,
+        profit: 0,
+        profitMargin: 0,
+        avgTransaction: 0,
+        itemsSold: 0,
+        totalOrders: 0,
+        totalCustomers: 0,
+        refunds: 0,
+        successRate: 100,
+      };
+    }
+
     const totalRevenue = orders.reduce((sum, order) => sum + order.grandTotal, 0);
     const totalItems = orders.reduce(
       (sum, order) => sum + order.items.reduce((iSum, item) => iSum + item.qty, 0),
       0
     );
 
-    // Calculate profit using 25% margin
+    // Calculate profit using actual cost prices or fallback to 40% margin
     const profitData = orders.reduce((acc, order) => {
       const orderProfit = order.items.reduce((itemAcc, item) => {
         const product = productMap.get(item.sku);
-        // Use 25% margin instead of 40%
-        const costPrice = product?.costPrice || item.price * 0.75;
+        // Use actual cost price if available, otherwise use 40% margin (60% cost)
+        const costPrice = product?.costPrice || item.price * 0.6;
         const itemRevenue = item.price * item.qty;
         const itemCost = costPrice * item.qty;
         const itemProfit = itemRevenue - itemCost;
@@ -241,7 +232,7 @@ export default function AdminReportsPage() {
     return {
       revenue: Math.round(totalRevenue),
       profit: Math.round(profitData.profit),
-      profitMargin: Math.round(profitMargin),
+      profitMargin: parseFloat(profitMargin.toFixed(1)),
       avgTransaction: Math.round(avgTransaction),
       itemsSold: totalItems,
       totalOrders: orders.length,
@@ -252,6 +243,10 @@ export default function AdminReportsPage() {
   };
 
   const calculateSalesTrend = (orders: Order[], productMap: Map<string, Product>, range: TimeRange) => {
+    if (orders.length === 0) {
+      return { labels: [], revenue: [], itemsSold: [], orders: [], profit: [] };
+    }
+
     const formatMap: Record<TimeRange, Intl.DateTimeFormatOptions> = {
       '7days': { day: 'numeric', month: 'short' },
       '30days': { day: 'numeric', month: 'short' },
@@ -260,33 +255,37 @@ export default function AdminReportsPage() {
     };
 
     const grouped = orders.reduce((acc, order) => {
-      const date = new Date(order.createdAt);
-      const label = date.toLocaleDateString('en-IN', formatMap[range]);
-      
-      if (!acc[label]) {
-        acc[label] = { revenue: 0, items: 0, orders: 0, profit: 0 };
+      try {
+        const date = new Date(order.createdAt);
+        const label = date.toLocaleDateString('en-IN', formatMap[range]);
+        
+        if (!acc[label]) {
+          acc[label] = { revenue: 0, items: 0, orders: 0, profit: 0 };
+        }
+        
+        // Calculate order profit
+        const orderProfit = order.items.reduce((profit, item) => {
+          const product = productMap.get(item.sku);
+          const costPrice = product?.costPrice || item.price * 0.6;
+          return profit + (item.price - costPrice) * item.qty;
+        }, 0);
+        
+        acc[label].revenue += order.grandTotal;
+        acc[label].items += order.items.reduce((sum, item) => sum + item.qty, 0);
+        acc[label].orders += 1;
+        acc[label].profit += orderProfit;
+      } catch (error) {
+        console.error('Error processing order for trend:', error);
       }
-      
-      // Calculate order profit with 25% margin
-      const orderProfit = order.items.reduce((profit, item) => {
-        const product = productMap.get(item.sku);
-        const costPrice = product?.costPrice || item.price * 0.75;
-        return profit + (item.price - costPrice) * item.qty;
-      }, 0);
-      
-      acc[label].revenue += order.grandTotal;
-      acc[label].items += order.items.reduce((sum, item) => sum + item.qty, 0);
-      acc[label].orders += 1;
-      acc[label].profit += orderProfit;
       
       return acc;
     }, {} as Record<string, { revenue: number; items: number; orders: number; profit: number }>);
 
     const labels = Object.keys(grouped);
-    const revenue = labels.map(label => grouped[label].revenue);
+    const revenue = labels.map(label => Math.round(grouped[label].revenue));
     const itemsSold = labels.map(label => grouped[label].items);
     const ordersCount = labels.map(label => grouped[label].orders);
-    const profit = labels.map(label => grouped[label].profit);
+    const profit = labels.map(label => Math.round(grouped[label].profit));
 
     return { labels, revenue, itemsSold, orders: ordersCount, profit };
   };
@@ -304,41 +303,65 @@ export default function AdminReportsPage() {
       data.count += 1;
     });
 
-    return Array.from(paymentMap.entries()).map(([method, data]) => ({
-      method,
-      amount: data.amount,
-      count: data.count,
-    }));
+    return Array.from(paymentMap.entries())
+      .map(([method, data]) => ({
+        method,
+        amount: Math.round(data.amount),
+        count: data.count,
+      }))
+      .sort((a, b) => b.amount - a.amount); // Sort by amount descending
   };
 
-  const calculateMetalSales = (orders: Order[]) => {
-    const metalMap = new Map();
-    
-    orders.forEach(order => {
-      order.items.forEach(item => {
-        const metal = (item.metal || 'Other').toLowerCase();
+const calculateMetalSales = (orders: Order[], productMap: Map<string, Product>) => {
+  const metalMap = new Map<string, { revenue: number; items: number }>();
+  
+  orders.forEach(order => {
+    order.items.forEach(item => {
+      const product = productMap.get(item.sku);
+      // Use product metal if available and valid, otherwise determine from context
+      let metal: string;
+      
+      if (product?.metal && (product.metal === 'gold' || product.metal === 'silver')) {
+        metal = product.metal;
+      } else {
+        // Try to extract metal from category or product name
+        const category = product?.category?.toLowerCase() || '';
+        const name = product?.name?.toLowerCase() || item.name.toLowerCase();
         
-        if (!metalMap.has(metal)) {
-          metalMap.set(metal, { revenue: 0, items: 0 });
+        if (category.includes('gold') || name.includes('gold')) {
+          metal = 'gold';
+        } else if (category.includes('silver') || name.includes('silver')) {
+          metal = 'silver';
+        } else {
+          metal = 'other';
         }
-        const data = metalMap.get(metal);
-        data.revenue += item.price * item.qty;
-        data.items += item.qty;
-      });
+      }
+      
+      if (!metalMap.has(metal)) {
+        metalMap.set(metal, { revenue: 0, items: 0 });
+      }
+      const data = metalMap.get(metal)!;
+      data.revenue += item.price * item.qty;
+      data.items += item.qty;
     });
+  });
 
-    return Array.from(metalMap.entries()).map(([metal, data]) => {
-      const metalName = metal && typeof metal === 'string' 
-        ? metal.charAt(0).toUpperCase() + metal.slice(1)
-        : 'Other';
-        
-      return {
-        metal: metalName,
-        revenue: data.revenue,
-        items: data.items,
-      };
-    });
-  };
+  // Convert to array and sort by revenue (highest first)
+  const metalData = Array.from(metalMap.entries()).map(([metal, data]) => {
+    // Properly capitalize metal names
+    const metalName = metal === 'gold' ? 'Gold' : 
+                     metal === 'silver' ? 'Silver' : 'Other';
+      
+    return {
+      metal: metalName,
+      revenue: Math.round(data.revenue),
+      items: data.items,
+    };
+  });
+
+  // Sort by revenue descending
+  return metalData.sort((a, b) => b.revenue - a.revenue);
+};
 
   const calculateTrend = (current: number, previous: number): string => {
     if (previous === 0) return current > 0 ? '+100%' : '0%';
@@ -359,13 +382,13 @@ export default function AdminReportsPage() {
   return (
     <Layout>
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold text-yellow-700">Reports & Analytics</h2>
+        <h2 className="text-xl text-yellow-700">Reports & Analytics</h2>
         
         {/* Time Range Filter */}
         <select 
           value={timeRange}
           onChange={(e) => setTimeRange(e.target.value as TimeRange)}
-          className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+          className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
         >
           <option value="7days">Last 7 Days</option>
           <option value="30days">Last 30 Days</option>
@@ -374,7 +397,7 @@ export default function AdminReportsPage() {
         </select>
       </div>
 
-      {/* Summary Metrics - Medium Size */}
+      {/* Summary Metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <MetricCard 
           title="Total Revenue" 
@@ -426,11 +449,11 @@ export default function AdminReportsPage() {
         />
       </div>
 
-      {/* Charts Grid - Medium Size */}
+      {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Sales & Profit Trend - Medium */}
-        <div className="bg-white rounded-lg shadow p-5">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Sales & Profit Trend</h3>
+        {/* Sales & Profit Trend */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg text-gray-800 mb-4">Sales & Profit Trend</h3>
           <div className="h-64">
             <Line
               data={{
@@ -489,9 +512,9 @@ export default function AdminReportsPage() {
           </div>
         </div>
 
-        {/* Payment Methods - Medium */}
-        <div className="bg-white rounded-lg shadow p-5">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Payment Methods</h3>
+        {/* Payment Methods */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg text-gray-800 mb-4">Payment Methods</h3>
           <div className="h-64">
             <Doughnut
               data={{
@@ -548,7 +571,7 @@ export default function AdminReportsPage() {
                   ></span>
                   {method.method}
                 </span>
-                <span className="font-semibold text-sm">
+                <span className="text-sm">
                   ₹{method.amount.toLocaleString()} ({method.count} orders)
                 </span>
               </div>
@@ -556,30 +579,39 @@ export default function AdminReportsPage() {
           </div>
         </div>
 
-        {/* Metal Sales Analysis - Medium */}
-        <div className="bg-white rounded-lg shadow p-5">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Metal Sales Analysis</h3>
+        {/* Metal Sales Analysis */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg text-gray-800 mb-4">Metal Sales Analysis</h3>
           <div className="space-y-4">
             {metalSales.length > 0 ? (
-              metalSales.map((metal, index) => (
-                <div key={metal.metal} className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium text-base">{metal.metal}</span>
-                    <span className="text-sm text-gray-600">
-                      {metal.items} items • ₹{Math.round(metal.revenue).toLocaleString()}
-                    </span>
+              metalSales.map((metal) => {
+                const totalRevenue = metalSales.reduce((sum, m) => sum + m.revenue, 0);
+                const percentage = totalRevenue > 0 ? (metal.revenue / totalRevenue) * 100 : 0;
+                
+                return (
+                  <div key={metal.metal} className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-base">{metal.metal}</span>
+                      <span className="text-sm text-gray-600">
+                        {metal.items} items • ₹{metal.revenue.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="h-2 rounded-full transition-all duration-500"
+                        style={{
+                          width: `${percentage}%`,
+                          backgroundColor: metal.metal === 'Gold' ? '#d4af37' : 
+                                         metal.metal === 'Silver' ? '#c0c0c0' : '#cd7f32',
+                        }}
+                      ></div>
+                    </div>
+                    <div className="text-xs text-gray-500 text-right">
+                      {percentage.toFixed(1)}% of total revenue
+                    </div>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="h-2 rounded-full"
-                      style={{
-                        width: `${(metal.revenue / Math.max(1, ...metalSales.map(m => m.revenue))) * 100}%`,
-                        backgroundColor: ['#d4af37', '#c0c0c0', '#cd7f32', '#b87333'][index % 4],
-                      }}
-                    ></div>
-                  </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="text-center text-gray-500 py-3 text-base">
                 No metal sales data available
@@ -589,78 +621,54 @@ export default function AdminReportsPage() {
         </div>
       </div>
 
-      {/* Recent Transactions - Medium */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-5 border-b">
-          <h3 className="text-lg font-semibold text-gray-800">Recent Sales Transactions</h3>
+      {/* Recent Transactions - Only 5 */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="p-6 border-b border-gray-200">
+          <h3 className="text-lg text-gray-800">Recent Sales Transactions</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="p-4 text-left font-medium text-gray-600">Order ID</th>
-                <th className="p-4 text-left font-medium text-gray-600">Customer</th>
-                <th className="p-4 text-left font-medium text-gray-600">Date</th>
-                <th className="p-4 text-left font-medium text-gray-600">Items</th>
-                <th className="p-4 text-left font-medium text-gray-600">Payment</th>
-                <th className="p-4 text-left font-medium text-gray-600">Amount</th>
-                <th className="p-4 text-left font-medium text-gray-600">Status</th>
+                <th className="p-4 text-left text-gray-700">Order ID</th>
+                <th className="p-4 text-left text-gray-700">Date & Time</th>
+                <th className="p-4 text-left text-gray-700">Customer</th>
+                <th className="p-4 text-left text-gray-700">Items</th>
+                <th className="p-4 text-left text-gray-700">Payment</th>
+                <th className="p-4 text-left text-gray-700">Amount</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {transactions.length > 0 ? (
-                transactions.map((txn) => {
-                  return (
-                    <tr key={txn._id} className="hover:bg-gray-50">
-                      <td className="p-4 font-mono text-xs">{txn.orderId}</td>
-                      <td className="p-4">
-                        <div>
-                          <div className="font-medium text-sm">{txn.customer?.name || '—'}</div>
-                          <div className="text-gray-500 text-xs">{txn.customer?.phone}</div>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <div className="text-xs">
-                          <div>{txn.date}</div>
-                          <div className="text-gray-500">{txn.time}</div>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <div className="text-xs">
-                          {txn.items.length} items
-                          <div className="text-gray-500">
-                            {txn.items.slice(0, 2).map(item => item.name).join(', ')}
-                            {txn.items.length > 2 && '...'}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          txn.paymentMode === 'Cash' 
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-blue-100 text-blue-800'
-                        }`}>
-                          {txn.paymentMode}
-                        </span>
-                      </td>
-                      <td className="p-4 font-semibold text-sm">₹{txn.grandTotal.toLocaleString()}</td>
-                      <td className="p-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          txn.status === 'completed' 
-                            ? 'bg-green-100 text-green-800'
-                            : txn.status === 'refunded'
-                            ? 'bg-red-100 text-red-800'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {txn.status ? txn.status.charAt(0).toUpperCase() + txn.status.slice(1) : 'Unknown'}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })
+                transactions.map((txn) => (
+                  <tr key={txn._id} className="hover:bg-gray-50 transition-colors duration-150">
+                    <td className="p-4">{txn.orderId}</td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-2 text-gray-600">
+                        <span>{txn.date}</span>
+                        <span className="text-gray-400">|</span>
+                        <span>{txn.time}</span>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div>{txn.customer?.name || '—'}</div>
+                    </td>
+                    <td className="p-4 text-center">
+                      <span className="inline-flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-800 rounded-full text-xs">
+                        {txn.items.length}
+                      </span>
+                    </td>
+                    <td className="p-4">
+                      <span className="capitalize">{txn.paymentMode}</span>
+                    </td>
+                    <td className="p-4 text-green-600">
+                      ₹{txn.grandTotal.toLocaleString()}
+                    </td>
+                  </tr>
+                ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="p-4 text-center text-gray-500 text-sm">
+                  <td colSpan={6} className="p-8 text-center text-gray-500">
                     No transactions found
                   </td>
                 </tr>
@@ -682,17 +690,15 @@ function MetricCard({ title, value, trend, icon }: {
   const isPositive = !trend.startsWith('-');
   
   return (
-    <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow duration-150">
       <div className="flex justify-between items-start mb-2">
         <span className="text-2xl">{icon}</span>
-        <span className={`text-xs font-medium ${
-          isPositive ? 'text-green-600' : 'text-red-600'
-        }`}>
+        <span className={`text-xs ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
           {trend}
         </span>
       </div>
-      <h4 className="text-sm font-medium text-gray-600 mb-1">{title}</h4>
-      <p className="text-xl font-bold text-gray-900">{value}</p>
+      <h4 className="text-sm text-gray-600 mb-1">{title}</h4>
+      <p className="text-xl text-gray-900">{value}</p>
     </div>
   );
 }

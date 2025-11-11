@@ -1,6 +1,6 @@
 import Layout from '../components/Layout';
 import { useEffect, useState } from 'react';
-import { FaEdit, FaTrash, FaPlus, FaTimes, FaTags, FaCheck, FaTimes as FaTimesIcon } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaPlus, FaTimes, FaTags, FaCheck, FaTimes as FaTimesIcon, FaSync } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import {
   fetchCategories,
@@ -36,6 +36,11 @@ export default function AdminCategoryPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [productStats, setProductStats] = useState<ProductStats>({});
 
+  // Reset form function
+  const resetForm = () => {
+    setForm({ name: '', description: '' });
+  };
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -43,15 +48,29 @@ export default function AdminCategoryPage() {
         
         // Load categories
         const categoriesData = await fetchCategories();
-        if (categoriesData.success && Array.isArray(categoriesData.categories)) {
-          setCategories(categoriesData.categories);
-        } else {
-          toast.error(categoriesData.message || 'Could not load categories');
+        
+        // Handle different response formats
+        let categoriesList: Category[] = [];
+        if (Array.isArray(categoriesData)) {
+          categoriesList = categoriesData;
+        } else if (categoriesData && typeof categoriesData === 'object') {
+          if ('success' in categoriesData && categoriesData.success) {
+            // Use empty arrays as fallbacks if properties are undefined
+            categoriesList = categoriesData.categories || categoriesData.data || [];
+          } else if ('categories' in categoriesData && Array.isArray(categoriesData.categories)) {
+            categoriesList = categoriesData.categories;
+          } else if ('data' in categoriesData && Array.isArray(categoriesData.data)) {
+            categoriesList = categoriesData.data;
+          } else if (Array.isArray(categoriesData)) {
+            categoriesList = categoriesData;
+          }
         }
+        
+        setCategories(categoriesList);
 
         // Load products to calculate stats
         const products = await fetchProducts();
-        calculateProductStats(products, categoriesData.categories || []);
+        calculateProductStats(products, categoriesList);
         
       } catch (err) {
         console.error('Data fetch error:', err);
@@ -110,9 +129,9 @@ export default function AdminCategoryPage() {
           [form.name]: { total: 0, available: 0, sold: 0 }
         }));
         
-        toast.success('Category added');
+        toast.success('Category added successfully');
         setShowModal(false);
-        setForm({ name: '', description: '' });
+        resetForm();
       } else {
         toast.error(res.message || 'Failed to add category');
       }
@@ -124,6 +143,12 @@ export default function AdminCategoryPage() {
 
   const handleUpdate = async () => {
     if (!editCategory?._id) return;
+    
+    if (!editCategory.name.trim()) {
+      toast.error('Category name is required');
+      return;
+    }
+
     try {
       const oldCategoryName = categories.find(cat => cat._id === editCategory._id)?.name;
       const res = await updateCategory(editCategory._id, editCategory);
@@ -145,8 +170,9 @@ export default function AdminCategoryPage() {
           });
         }
 
-        toast.success('Category updated');
+        toast.success('Category updated successfully');
         setEditCategory(null);
+        setShowModal(false);
       } else {
         toast.error(res.message || 'Update failed');
       }
@@ -175,7 +201,7 @@ export default function AdminCategoryPage() {
           });
         }
         
-        toast.success('Category deleted');
+        toast.success('Category deleted successfully');
         setConfirmDeleteId(null);
       } else {
         toast.error(res.message || 'Delete failed');
@@ -197,6 +223,23 @@ export default function AdminCategoryPage() {
     }
   };
 
+  const openAddModal = () => {
+    resetForm();
+    setEditCategory(null);
+    setShowModal(true);
+  };
+
+  const openEditModal = (cat: Category) => {
+    setEditCategory(cat);
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditCategory(null);
+    resetForm();
+  };
+
   return (
     <Layout>
       <div className="flex justify-between items-center mb-6">
@@ -206,48 +249,52 @@ export default function AdminCategoryPage() {
         <div className="flex gap-2">
           <button
             onClick={refreshStats}
-            className="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700 flex items-center gap-2 text-sm"
+            className="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700 flex items-center gap-2 text-sm transition-colors duration-200"
           >
-            Refresh Stats
+            <FaSync /> Refresh Stats
           </button>
           <button
-            className="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700 flex items-center gap-2"
-            onClick={() => setShowModal(true)}
+            className="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700 flex items-center gap-2 transition-colors duration-200"
+            onClick={openAddModal}
           >
             <FaPlus /> Add Category
           </button>
         </div>
       </div>
 
-      <div className="bg-white rounded shadow-sm p-4">
-        <table className="w-full text-sm border">
-          <thead className="bg-gray-100">
+      {/* Categories Table */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50">
             <tr>
-              <th className="p-2 text-left">Category</th>
-              <th className="p-2 text-left">Description</th>
-              <th className="p-2 text-center">Total Products</th>
-              <th className="p-2 text-center text-green-600">
+              <th className="p-3 text-left font-semibold text-gray-700">Category</th>
+              <th className="p-3 text-left font-semibold text-gray-700">Description</th>
+              <th className="p-3 text-center font-semibold text-gray-700">Total Products</th>
+              <th className="p-3 text-center font-semibold text-green-600">
                 <FaCheck className="inline mr-1" />
                 Available
               </th>
-              <th className="p-2 text-center text-red-600">
+              <th className="p-3 text-center font-semibold text-red-600">
                 <FaTimesIcon className="inline mr-1" />
                 Sold Out
               </th>
-              <th className="p-2 text-center">Actions</th>
+              <th className="p-3 text-center font-semibold text-gray-700">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="text-center text-gray-500 py-4">
-                  Loading categories and statistics...
+                <td colSpan={6} className="text-center text-gray-500 py-8">
+                  <div className="flex justify-center items-center">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-yellow-600 mr-2"></div>
+                    Loading categories and statistics...
+                  </div>
                 </td>
               </tr>
             ) : categories.length === 0 ? (
               <tr>
-                <td colSpan={6} className="text-center text-gray-500 py-4">
-                  No categories found
+                <td colSpan={6} className="text-center text-gray-500 py-8">
+                  No categories found. Click "Add Category" to create one.
                 </td>
               </tr>
             ) : (
@@ -255,33 +302,35 @@ export default function AdminCategoryPage() {
                 const stats = productStats[cat.name] || { total: 0, available: 0, sold: 0 };
 
                 return (
-                  <tr key={cat._id || cat.name} className="border-t hover:bg-gray-50">
-                    <td className="p-2 font-medium">{cat.name}</td>
-                    <td className="p-2">{cat.description || '—'}</td>
-                    <td className="p-2 text-center">
-                      <span className="font-semibold">{stats.total}</span>
+                  <tr key={cat._id || cat.name} className="border-t border-gray-100 hover:bg-gray-50 transition-colors duration-150">
+                    <td className="p-3 font-medium">{cat.name}</td>
+                    <td className="p-3 text-gray-600">{cat.description || '—'}</td>
+                    <td className="p-3 text-center">
+                      <span className="font-semibold text-gray-800">{stats.total}</span>
                     </td>
-                    <td className="p-2 text-center">
+                    <td className="p-3 text-center">
                       <span className="font-semibold text-green-600">{stats.available}</span>
                     </td>
-                    <td className="p-2 text-center">
+                    <td className="p-3 text-center">
                       <span className="font-semibold text-red-600">{stats.sold}</span>
                     </td>
-                    <td className="p-2 text-center flex justify-center gap-2">
-                      <button
-                        className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
-                        onClick={() => setEditCategory(cat)}
-                        title="Edit Category"
-                      >
-                        <FaEdit />
-                      </button>
-                      <button
-                        className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
-                        onClick={() => setConfirmDeleteId(cat._id!)}
-                        title="Delete Category"
-                      >
-                        <FaTrash />
-                      </button>
+                    <td className="p-3 text-center">
+                      <div className="flex justify-center gap-2">
+                        <button
+                          className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50 transition-colors duration-150"
+                          onClick={() => openEditModal(cat)}
+                          title="Edit Category"
+                        >
+                          <FaEdit />
+                        </button>
+                        <button
+                          className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 transition-colors duration-150"
+                          onClick={() => setConfirmDeleteId(cat._id!)}
+                          title="Delete Category"
+                        >
+                          <FaTrash />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -290,11 +339,12 @@ export default function AdminCategoryPage() {
           </tbody>
         </table>
         
+        {/* Summary Stats */}
         {!loading && categories.length > 0 && (
-          <div className="mt-4 p-3 bg-gray-50 rounded border">
+          <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
             <div className="grid grid-cols-3 gap-4 text-sm">
               <div className="text-center">
-                <div className="font-semibold text-lg">
+                <div className="font-semibold text-lg text-gray-800">
                   {Object.values(productStats).reduce((sum, stat) => sum + stat.total, 0)}
                 </div>
                 <div className="text-gray-600">Total Products</div>
@@ -315,61 +365,81 @@ export default function AdminCategoryPage() {
           </div>
         )}
         
-        <p className="text-sm text-gray-500 mt-4">
-          Showing {categories.length} categor{categories.length !== 1 ? 'ies' : 'y'}
-        </p>
+        {/* Category Count */}
+        {!loading && (
+          <div className="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-yellow-800">
+                Showing {categories.length} categor{categories.length !== 1 ? 'ies' : 'y'}
+              </p>
+              <div className="text-xs text-yellow-700">
+                Last updated: {new Date().toLocaleTimeString()}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
+      {/* ➕ Add / ✏️ Edit Modal */}
       {(showModal || editCategory) && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#99A1AF]/90">
-          <div className="bg-white rounded shadow-lg p-6 w-full max-w-md text-sm z-50 relative">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto z-50 relative">
             <button
-              onClick={() => {
-                setShowModal(false);
-                setEditCategory(null);
-              }}
-              className="absolute top-4 right-4 text-gray-500 hover:text-red-500 text-xl"
+              onClick={closeModal}
+              className="absolute top-4 right-4 text-gray-500 hover:text-red-500 text-xl transition-colors duration-150"
               aria-label="Close"
             >
               <FaTimes />
             </button>
 
-            <h2 className="text-lg font-semibold mb-4 text-center">
+            <h2 className="text-lg font-semibold mb-4 text-center text-gray-800">
               {editCategory ? 'Edit Category' : 'Add New Category'}
             </h2>
 
-            <div className="space-y-3">
-              <input
-                type="text"
-                placeholder="Category Name"
-                value={editCategory ? editCategory.name : form.name}
-                onChange={(e) =>
-                  editCategory
-                    ? setEditCategory({ ...editCategory, name: e.target.value })
-                    : setForm({ ...form, name: e.target.value })
-                }
-                className="w-full border p-2 rounded"
-              />
-              <textarea
-                placeholder="Description"
-                value={editCategory ? editCategory.description || '' : form.description}
-                onChange={(e) =>
-                  editCategory
-                    ? setEditCategory({ ...editCategory, description: e.target.value })
-                    : setForm({ ...form, description: e.target.value })
-                }
-                className="w-full border p-2 rounded"
-                rows={3}
-              />
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Category Name *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Enter category name"
+                  value={editCategory ? editCategory.name : form.name}
+                  onChange={(e) =>
+                    editCategory
+                      ? setEditCategory({ ...editCategory, name: e.target.value })
+                      : setForm({ ...form, name: e.target.value })
+                  }
+                  className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  placeholder="Enter category description (optional)"
+                  value={editCategory ? editCategory.description || '' : form.description}
+                  onChange={(e) =>
+                    editCategory
+                      ? setEditCategory({ ...editCategory, description: e.target.value })
+                      : setForm({ ...form, description: e.target.value })
+                  }
+                  className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
+                  rows={3}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Optional: Add a description to help identify this category
+                </p>
+              </div>
             </div>
 
-            <div className="flex justify-end gap-4 mt-6">
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
               <button
-                onClick={() => {
-                  setShowModal(false);
-                  setEditCategory(null);
-                }}
-                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+                onClick={closeModal}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors duration-150"
               >
                 Cancel
               </button>
@@ -381,47 +451,54 @@ export default function AdminCategoryPage() {
                     await handleSave();
                   }
                 }}
-                className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700"
+                className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition-colors duration-150 flex items-center gap-2"
               >
-                {editCategory ? 'Save Changes' : 'Save Category'}
+                {editCategory ? 'Save Changes' : 'Add Category'}
               </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* 🗑️ Delete Confirmation Modal */}
       {confirmDeleteId && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#99A1AF]/90">
-          <div className="bg-white rounded shadow-lg p-6 w-full max-w-md text-sm z-50 relative">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md z-50 relative">
             <button
               onClick={() => setConfirmDeleteId(null)}
-              className="absolute top-4 right-4 text-gray-500 hover:text-red-500 text-xl"
+              className="absolute top-4 right-4 text-gray-500 hover:text-red-500 text-xl transition-colors duration-150"
               aria-label="Close"
             >
               <FaTimes />
             </button>
 
-            <h2 className="text-lg font-semibold mb-4 text-center text-red-600">
-              Delete Category
-            </h2>
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                <FaTrash className="h-6 w-6 text-red-600" />
+              </div>
+              
+              <h2 className="text-lg font-semibold mb-2 text-red-600">
+                Delete Category
+              </h2>
 
-            <p className="text-center text-gray-700 mb-6">
-              Are you sure you want to permanently delete this category?
-            </p>
+              <p className="text-gray-700 mb-6">
+                Are you sure you want to permanently delete this category? This action cannot be undone.
+              </p>
 
-            <div className="flex justify-center gap-4">
-              <button
-                onClick={() => setConfirmDeleteId(null)}
-                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDelete}
-                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-              >
-                Confirm Delete
-              </button>
+              <div className="flex justify-center gap-3">
+                <button
+                  onClick={() => setConfirmDeleteId(null)}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors duration-150"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors duration-150 flex items-center gap-2"
+                >
+                  <FaTrash /> Confirm Delete
+                </button>
+              </div>
             </div>
           </div>
         </div>

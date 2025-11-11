@@ -6,15 +6,15 @@ import {
   FaTimes,
   FaPrint,
   FaUndoAlt,
-  FaReceipt,
-  FaUser,
-  FaBoxOpen,
+  FaHistory,
   FaChevronLeft,
   FaChevronRight
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import Fuse from 'fuse.js';
 import { checkReturnExists } from '../services/returnService';
+import { fetchOrders } from '../services/orderService';
+import { fetchReturns, createReturn } from '../services/returnService';
 import { useReactToPrint } from 'react-to-print';
 import InvoiceContent from '../components/InvoiceContent';
 
@@ -56,32 +56,39 @@ export default function OrderHistoryPage() {
   const [returnedOrderIds, setReturnedOrderIds] = useState<string[]>([]);
   const [fuse, setFuse] = useState<Fuse<Order> | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(true);
   const itemsPerPage = 30;
 
   useEffect(() => {
-    fetch('http://localhost:3001/api/orders')
-      .then((res) => res.json())
-      .then((data: { success: boolean; orders: Order[] }) => {
-        if (data.success) {
-          setOrders(data.orders);
-          const fuseInstance = new Fuse(data.orders, {
-            keys: ['orderId', 'invoiceNumber', 'customer.name'],
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        
+        const ordersData = await fetchOrders();
+        if (ordersData.success) {
+          setOrders(ordersData.orders);
+          const fuseInstance = new Fuse(ordersData.orders, {
+            keys: ['orderId', 'invoiceNumber', 'customer.name', 'customer.phone'],
             threshold: 0.3,
             ignoreLocation: true,
             includeScore: true,
           });
           setFuse(fuseInstance);
         }
-      })
-      .catch((err) => console.error('Order fetch error:', err));
 
-    fetch('http://localhost:3001/api/returns')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          setReturnedOrderIds(data.returns.map((r: any) => r.orderId));
+        const returnsData = await fetchReturns();
+        if (returnsData.success) {
+          setReturnedOrderIds(returnsData.returns.map((r: any) => r.orderId));
         }
-      });
+      } catch (err) {
+        console.error('Data fetch error:', err);
+        toast.error('Failed to load order data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, []);
 
   const filteredByDate = useMemo(() => orders.filter((order) => {
@@ -103,14 +110,12 @@ export default function OrderHistoryPage() {
     return filteredByDate;
   }, [fuse, searchTerm, filteredByDate]);
 
-  // Pagination calculations
   const totalPages = Math.ceil(filteredResults.length / itemsPerPage);
   const paginatedOrders = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     return filteredResults.slice(startIndex, startIndex + itemsPerPage);
   }, [filteredResults, currentPage, itemsPerPage]);
 
-  // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, selectedDate]);
@@ -137,7 +142,7 @@ export default function OrderHistoryPage() {
     useReactToPrint({
       contentRef: invoiceRef,
       documentTitle: `Invoice-${printOrder?.invoiceNumber || 'Nirvaha'}`,
-      onAfterPrint: () => toast.success('Print completed'),
+      onAfterPrint: () => toast.success('Invoice printed successfully'),
     }),
     [printOrder]
   );
@@ -168,32 +173,29 @@ export default function OrderHistoryPage() {
     let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
     let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
     
-    // Adjust start page if we're near the end
     if (endPage - startPage + 1 < maxVisiblePages) {
       startPage = Math.max(1, endPage - maxVisiblePages + 1);
     }
 
-    // Previous page button
     buttons.push(
       <button
         key="prev"
         onClick={() => goToPage(currentPage - 1)}
         disabled={currentPage === 1}
-        className="px-3 py-2 border border-gray-300 rounded-l disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 flex items-center gap-1 text-gray-600"
+        className="px-3 py-2 border border-gray-300 rounded-l-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 flex items-center gap-1 text-gray-600 transition-colors duration-150"
       >
         <FaChevronLeft className="text-xs" />
       </button>
     );
 
-    // Page number buttons
     for (let page = startPage; page <= endPage; page++) {
       buttons.push(
         <button
           key={page}
           onClick={() => goToPage(page)}
-          className={`px-3 py-2 border-t border-b border-gray-300 ${
+          className={`px-3 py-2 border-t border-b border-gray-300 transition-colors duration-150 ${
             currentPage === page
-              ? 'bg-[#1E40AF] text-white border-[#1E40AF]'
+              ? 'bg-yellow-600 text-white border-yellow-600'
               : 'text-gray-600 hover:bg-gray-50'
           }`}
         >
@@ -202,13 +204,12 @@ export default function OrderHistoryPage() {
       );
     }
 
-    // Next page button
     buttons.push(
       <button
         key="next"
         onClick={() => goToPage(currentPage + 1)}
         disabled={currentPage === totalPages}
-        className="px-3 py-2 border border-gray-300 rounded-r disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 flex items-center gap-1 text-gray-600"
+        className="px-3 py-2 border border-gray-300 rounded-r-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 flex items-center gap-1 text-gray-600 transition-colors duration-150"
       >
         <FaChevronRight className="text-xs" />
       </button>
@@ -217,278 +218,364 @@ export default function OrderHistoryPage() {
     return buttons;
   };
 
+  const processReturn = async () => {
+    if (!returnOrder) return;
+
+    if (!returnReason || !returnType) {
+      toast.error('Please select both reason and type.');
+      return;
+    }
+
+    if (returnOrder.items.length === 0 || returnOrder.grandTotal <= 0) {
+      toast.error('Invalid return data.');
+      return;
+    }
+
+    const returnData = {
+      orderId: returnOrder.orderId || returnOrder._id,
+      invoiceNumber: returnOrder.invoiceNumber,
+      customer: returnOrder.customer,
+      items: returnOrder.items,
+      grandTotal: returnOrder.grandTotal,
+      returnReason,
+      returnType,
+      returnDate: new Date().toLocaleDateString(),
+      returnTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    try {
+      const data = await createReturn(returnData);
+
+      if (data.success) {
+        toast.success(`Return confirmed for invoice ${returnOrder.invoiceNumber}`);
+        setShowReturnModal(false);
+        setReturnReason('');
+        setReturnType('');
+
+        const updatedReturns = await fetchReturns();
+        if (updatedReturns.success) {
+          setReturnedOrderIds(updatedReturns.returns.map((r: any) => r.orderId));
+        }
+      } else {
+        toast.error(data.message || 'Failed to process return');
+      }
+    } catch (err) {
+      console.error('Return error:', err);
+      toast.error('Server error while processing return');
+    }
+  };
+
+  const closeReturnModal = () => {
+    setShowReturnModal(false);
+    setReturnOrder(null);
+    setReturnReason('');
+    setReturnType('');
+  };
+
   return (
     <>
-    <Layout>
-      <h2 className="text-xl font-bold mb-6 text-[#CC9200]">Order History</h2>
-
-      {/* 🔍 Search & Filter */}
-      <div className="flex flex-col md:flex-row gap-4 mb-6">
-        <div className="flex items-center border rounded px-3 py-2 w-full md:w-1/2">
-          <FaSearch className="text-gray-400 mr-2" />
-          <input
-            type="text"
-            placeholder="Search by Order ID, Invoice or Customer"
-            className="w-full outline-none"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+      <Layout>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold text-yellow-700 flex items-center gap-2">
+            <FaHistory /> Order History
+          </h2>
+          <div className="text-sm text-gray-600">
+            Total Orders: {orders.length}
+          </div>
         </div>
-        <div className="flex items-center border rounded px-3 py-2 w-full md:w-1/2">
-          <FaCalendarAlt className="text-gray-400 mr-2" />
-          <input
-            type="date"
-            className="w-full outline-none"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-          />
-        </div>
-      </div>
 
-      {/* 📋 Orders Table */}
-      <div className="bg-white rounded shadow-sm p-4">
-        <table className="w-full text-sm border">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="p-2 text-left">Order ID</th>
-              <th className="p-2 text-left">Date</th>
-              <th className="p-2 text-left">Customer</th>
-              <th className="p-2 text-center">Items</th>
-              <th className="p-2 text-left">Invoice No</th>
-              <th className="p-2 text-left">Payment Type</th>
-              <th className="p-2 text-right">Total</th>
-              <th className="p-2 text-center">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {paginatedOrders.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="text-center text-gray-500 py-4">
-                  {filteredResults.length === 0 ? 'No orders found' : 'No matches found'}
-                </td>
-              </tr>
-            ) : (
-              paginatedOrders.map((order, idx) => (
-                <tr key={idx} className="border-t hover:bg-gray-50">
-                  <td className="p-2">{order.orderId || order._id}</td>
-                  <td className="p-2">{order.date} {order.time}</td>
-                  <td className="p-2">{order.customer.name}</td>
-                  <td className="p-2 text-center">{order.items.length}</td>
-                  <td className="p-2">{order.invoiceNumber}</td>
-                  <td className="p-2">
-                    <div className="flex items-center gap-1">
-                      {getPaymentType(order)}
-                    </div>
-                  </td>
-                  <td className="p-2 text-right">₹{order.grandTotal.toLocaleString()}</td>
-                  <td className="p-2 text-center space-x-2">
-                    <button
-                      className="text-yellow-600 hover:text-yellow-700"
-                      title="Print Invoice"
-                      onClick={() => {
-                        setPrintOrder(order);
-                        setTimeout(() => handlePrint(), 300);
-                      }}
-                    >
-                      <FaPrint />
-                    </button>
-
-                    <button
-                      className={`text-red-600 ${
-                        returnedOrderIds.includes(order.orderId || order._id)
-                          ? 'opacity-40 cursor-not-allowed'
-                          : 'hover:text-red-700'
-                      }`}
-                      onClick={() =>
-                        !returnedOrderIds.includes(order.orderId || order._id) &&
-                        handleReturn(order)
-                      }
-                      title="Return Order"
-                    >
-                      <FaUndoAlt />
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-
-        {/* 📄 Pagination */}
-        {totalPages > 1 && (
-          <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4">
-            <div className="text-sm text-gray-600">
-              Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredResults.length)} of {filteredResults.length} orders
+        {/* Search & Filter */}
+        <div className="mb-6 space-y-4">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="relative flex-1">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <FaSearch className="text-gray-400" />
+              </div>
+              <input
+                type="text"
+                placeholder="Search by Order ID, Invoice, Customer Name or Phone..."
+                className="w-full border border-gray-300 pl-10 pr-4 py-3 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
             
-            <div className="flex items-center justify-center">
-              {renderPaginationButtons()}
-            </div>
-
-            <div className="text-sm text-gray-600">
-              Page {currentPage} of {totalPages}
+            <div className="relative flex-1">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <FaCalendarAlt className="text-gray-400" />
+              </div>
+              <input
+                type="date"
+                className="w-full border border-gray-300 pl-10 pr-4 py-3 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+              />
             </div>
           </div>
-        )}
 
-        {/* 📊 Summary when no pagination */}
-        {totalPages <= 1 && (
-          <p className="text-sm text-gray-500 mt-4">
-            Showing {filteredResults.length} of {orders.length} orders
-          </p>
-        )}
-      </div>
+          {/* Active Filters */}
+          {(searchTerm || selectedDate) && (
+            <div className="flex flex-wrap gap-2">
+              {searchTerm && (
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
+                  Search: "{searchTerm}"
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="ml-2 hover:text-blue-600"
+                  >
+                    <FaTimes className="text-xs" />
+                  </button>
+                </span>
+              )}
+              {selectedDate && (
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs bg-green-100 text-green-800">
+                  Date: {selectedDate}
+                  <button
+                    onClick={() => setSelectedDate('')}
+                    className="ml-2 hover:text-green-600"
+                  >
+                    <FaTimes className="text-xs" />
+                  </button>
+                </span>
+              )}
+            </div>
+          )}
+        </div>
 
-      {/* 🔁 Return Modal */}
-      {showReturnModal && returnOrder && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#99A1AF]/90">
-          <div className="bg-white rounded shadow-lg w-full max-w-2xl text-sm relative p-6">
-            <button
-              onClick={() => setShowReturnModal(false)}
-              className="absolute top-4 right-4 text-gray-500 hover:text-red-500 text-xl"
-              aria-label="Close"
-            >
-              <FaTimes />
-            </button>
+        {/* Orders Table */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="p-3 text-left font-semibold text-gray-700">Order ID</th>
+                <th className="p-3 text-left font-semibold text-gray-700">Date & Time</th>
+                <th className="p-3 text-left font-semibold text-gray-700">Customer</th>
+                <th className="p-3 text-center font-semibold text-gray-700">Items</th>
+                <th className="p-3 text-left font-semibold text-gray-700">Invoice No</th>
+                <th className="p-3 text-left font-semibold text-gray-700">Payment Type</th>
+                <th className="p-3 text-right font-semibold text-gray-700">Total</th>
+                <th className="p-3 text-center font-semibold text-gray-700">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="text-center text-gray-500 py-8">
+                    <div className="flex justify-center items-center">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-yellow-600 mr-2"></div>
+                      Loading orders...
+                    </div>
+                  </td>
+                </tr>
+              ) : paginatedOrders.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="text-center text-gray-500 py-8">
+                    {filteredResults.length === 0 ? 'No orders found' : 'No matching orders found'}
+                  </td>
+                </tr>
+              ) : (
+                paginatedOrders.map((order, idx) => (
+                  <tr key={idx} className="border-t border-gray-100 hover:bg-gray-50 transition-colors duration-150">
+                    <td className="p-3 font-medium">{order.orderId || order._id}</td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-2 text-gray-600">
+                        <span>{order.date}</span>
+                        <span className="text-gray-400">|</span>
+                        <span>{order.time}</span>
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <div className="font-medium">{order.customer.name}</div>
+                    </td>
+                    <td className="p-3 text-center">
+                      <span className="inline-flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                        {order.items.length}
+                      </span>
+                    </td>
+                    <td className="p-3 font-mono text-sm">{order.invoiceNumber}</td>
+                    <td className="p-3">
+                      <span className="capitalize">{getPaymentType(order)}</span>
+                    </td>
+                    <td className="p-3 text-right font-semibold text-green-600">
+                      ₹{order.grandTotal.toLocaleString()}
+                    </td>
+                    <td className="p-3 text-center">
+                      <div className="flex justify-center gap-2">
+                        <button
+                          className="text-yellow-600 hover:text-yellow-800 p-1 rounded hover:bg-yellow-50 transition-colors duration-150"
+                          title="Print Invoice"
+                          onClick={() => {
+                            setPrintOrder(order);
+                            setTimeout(() => handlePrint(), 300);
+                          }}
+                        >
+                          <FaPrint />
+                        </button>
 
-            <h2 className="text-xl font-semibold mb-6 text-center text-red-600">Return / Refund</h2>
+                        <button
+                          className={`p-1 rounded transition-colors duration-150 ${
+                            returnedOrderIds.includes(order.orderId || order._id)
+                              ? 'text-gray-400 cursor-not-allowed'
+                              : 'text-red-600 hover:text-red-800 hover:bg-red-50'
+                          }`}
+                          onClick={() =>
+                            !returnedOrderIds.includes(order.orderId || order._id) &&
+                            handleReturn(order)
+                          }
+                          title={returnedOrderIds.includes(order.orderId || order._id) ? "Return Already Processed" : "Return Order"}
+                        >
+                          <FaUndoAlt />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-gray-50 border rounded p-4 space-y-2">
-                <h3 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
-                  <FaReceipt className="text-red-500" /> Return Info
-                </h3>
-                <p><strong>Return Date:</strong> {new Date().toLocaleDateString()}</p>
-                <p><strong>Order ID:</strong> {returnOrder.orderId || returnOrder._id}</p>
-                <p><strong>Invoice No:</strong> {returnOrder.invoiceNumber}</p>
-                <p className="font-bold text-lg pt-2"><strong>Grand Total:</strong> ₹{returnOrder.grandTotal.toLocaleString()}</p>
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row justify-between items-center mt-6 pt-4 border-t border-gray-200 gap-4">
+              <div className="text-sm text-gray-600">
+                Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredResults.length)} of {filteredResults.length} orders
               </div>
-                            <div className="bg-gray-50 border rounded p-4 space-y-2">
-                <h3 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
-                  <FaUser className="text-blue-500" /> Customer Info
-                </h3>
-                <p><strong>Name:</strong> {returnOrder.customer.name}</p>
-                <p><strong>Phone:</strong> {returnOrder.customer.phone}</p>
-                <p><strong>Email:</strong> {returnOrder.customer.email}</p>
-                <div className="mt-4 space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Return Reason</label>
-                    <select
-                      value={returnReason}
-                      onChange={(e) => setReturnReason(e.target.value)}
-                      className="w-full border p-2 rounded"
-                    >
-                      <option value="">Select Reason</option>
-                      <option value="Damaged">Damaged</option>
-                      <option value="Wrong Item">Wrong Item</option>
-                      <option value="Customer Changed Mind">Customer Changed Mind</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Return Type</label>
-                    <select
-                      value={returnType}
-                      onChange={(e) => setReturnType(e.target.value)}
-                      className="w-full border p-2 rounded"
-                    >
-                      <option value="">Select Type</option>
-                      <option value="Cash">Cash</option>
-                      <option value="Card">Card</option>
-                      <option value="UPI">UPI</option>
-                      <option value="Wallet">Wallet</option>
-                    </select>
-                  </div>
+              
+              <div className="flex items-center justify-center">
+                {renderPaginationButtons()}
+              </div>
+
+              <div className="text-sm text-gray-600">
+                Page {currentPage} of {totalPages}
+              </div>
+            </div>
+          )}
+
+          {/* Summary */}
+          {!loading && (
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="flex justify-between items-center">
+                <p className="text-sm text-gray-600">
+                  Showing {filteredResults.length} of {orders.length} orders
+                  {filteredResults.length !== orders.length && ' (filtered)'}
+                </p>
+                <div className="text-sm text-gray-600">
+                  Last updated: {new Date().toLocaleTimeString()}
                 </div>
               </div>
             </div>
-
-            <div className="mb-6">
-              <h3 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
-                <FaBoxOpen className="text-green-600" /> Returned Items
-              </h3>
-              <table className="w-full text-sm border">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="p-2 text-left">Product</th>
-                    <th className="p-2 text-right">Price</th>
-                    <th className="p-2 text-center">Qty</th>
-                    <th className="p-2 text-right">Subtotal</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {returnOrder.items.map((item, idx) => (
-                    <tr key={idx} className="border-t">
-                      <td className="p-2">{item.name}</td>
-                      <td className="p-2 text-right">₹{item.price.toLocaleString()}</td>
-                      <td className="p-2 text-center">{item.qty}</td>
-                      <td className="p-2 text-right">₹{(item.price * item.qty).toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* ✅ Confirm Button */}
-            <button
-              className="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded"
-              onClick={async () => {
-                if (!returnReason || !returnType) {
-                  toast.error('Please select both reason and type.');
-                  return;
-                }
-
-                if (returnOrder.items.length === 0 || returnOrder.grandTotal <= 0) {
-                  toast.error('Invalid return data.');
-                  return;
-                }
-
-                const returnData = {
-                  orderId: returnOrder.orderId || returnOrder._id,
-                  invoiceNumber: returnOrder.invoiceNumber,
-                  customer: returnOrder.customer,
-                  items: returnOrder.items,
-                  grandTotal: returnOrder.grandTotal,
-                  returnReason,
-                  returnType,
-                  returnDate: new Date().toLocaleDateString(),
-                  returnTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                };
-
-                try {
-                  const res = await fetch('http://localhost:3001/api/returns', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(returnData),
-                  });
-                  const data = await res.json();
-
-                  if (data.success) {
-                    toast.success(`Return confirmed for invoice ${returnOrder.invoiceNumber}`);
-                    setShowReturnModal(false);
-                    setReturnReason('');
-                    setReturnType('');
-
-                    const updatedReturns = await fetch('http://localhost:3001/api/returns').then(res => res.json());
-                    if (updatedReturns.success) {
-                      setReturnedOrderIds(updatedReturns.returns.map((r: any) => r.orderId));
-                    }
-                  } else {
-                    toast.error(data.message || 'Failed to process return');
-                  }
-                } catch (err) {
-                  console.error('Return error:', err);
-                  toast.error('Server error');
-                }
-              }}
-            >
-              Confirm Return
-            </button>
-          </div>
+          )}
         </div>
-      )}
-    </Layout>
 
-    {/* ✅ Hidden printable layout */}
+        {/* Return Modal */}
+        {showReturnModal && returnOrder && (
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl text-sm relative p-6 max-h-[90vh] overflow-y-auto">
+              <button
+                onClick={closeReturnModal}
+                className="absolute top-4 right-4 text-gray-500 hover:text-red-500 text-xl transition-colors duration-150"
+                aria-label="Close"
+              >
+                <FaTimes />
+              </button>
+
+              <h2 className="text-xl font-semibold mb-6 text-center text-red-600 flex items-center justify-center gap-2">
+                <FaUndoAlt /> Return / Refund
+              </h2>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
+                  <h3 className="font-semibold text-gray-800 mb-3">Return Information</h3>
+                  <div className="space-y-2">
+                    <p><strong>Return Date:</strong> {new Date().toLocaleDateString()}</p>
+                    <p><strong>Order ID:</strong> {returnOrder.orderId || returnOrder._id}</p>
+                    <p><strong>Invoice No:</strong> {returnOrder.invoiceNumber}</p>
+                    <p className="font-bold text-lg pt-2 text-red-600">
+                      <strong>Grand Total:</strong> ₹{returnOrder.grandTotal.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
+                  <h3 className="font-semibold text-gray-800 mb-3">Customer Information</h3>
+                  <div className="space-y-2 mb-4">
+                    <p><strong>Name:</strong> {returnOrder.customer.name}</p>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Return Reason *</label>
+                      <select
+                        value={returnReason}
+                        onChange={(e) => setReturnReason(e.target.value)}
+                        className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors duration-150"
+                      >
+                        <option value="">Select Reason</option>
+                        <option value="Damaged">Damaged Product</option>
+                        <option value="Wrong Item">Wrong Item Delivered</option>
+                        <option value="Customer Changed Mind">Customer Changed Mind</option>
+                        <option value="Quality Issues">Quality Issues</option>
+                        <option value="Size Issues">Size/Measurement Issues</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Refund Method *</label>
+                      <select
+                        value={returnType}
+                        onChange={(e) => setReturnType(e.target.value)}
+                        className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors duration-150"
+                      >
+                        <option value="">Select Refund Method</option>
+                        <option value="Cash">Cash</option>
+                        <option value="Card">Card Refund</option>
+                        <option value="UPI">UPI Refund</option>
+                        <option value="Wallet">Wallet Refund</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <h3 className="font-semibold text-gray-800 mb-3">Returned Items</h3>
+                <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="p-3 text-left font-semibold text-gray-700">Product Name</th>
+                        <th className="p-3 text-left font-semibold text-gray-700">SKU</th>
+                        <th className="p-3 text-right font-semibold text-gray-700">Price</th>
+                        <th className="p-3 text-center font-semibold text-gray-700">Qty</th>
+                        <th className="p-3 text-right font-semibold text-gray-700">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {returnOrder.items.map((item, idx) => (
+                        <tr key={idx} className="border-t border-gray-100 hover:bg-gray-50 transition-colors duration-150">
+                          <td className="p-3">{item.name}</td>
+                          <td className="p-3 font-mono text-xs text-gray-600">{item.sku}</td>
+                          <td className="p-3 text-right">₹{item.price.toLocaleString()}</td>
+                          <td className="p-3 text-center">{item.qty}</td>
+                          <td className="p-3 text-right font-medium">₹{(item.price * item.qty).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <button
+                className="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg font-medium transition-colors duration-150 flex items-center justify-center gap-2"
+                onClick={processReturn}
+              >
+                <FaUndoAlt /> Confirm Return & Refund
+              </button>
+            </div>
+          </div>
+        )}
+      </Layout>
+
+      {/* Hidden printable layout */}
       {printOrder && (
         <div className="hidden">
           <InvoiceContent

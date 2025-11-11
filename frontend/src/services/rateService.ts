@@ -1,3 +1,5 @@
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
+
 export type GoldPurities = '24K' | '22K' | '18K';
 
 export type RateItem = {
@@ -13,9 +15,25 @@ export type Rates = {
   raw?: RateItem[];
 };
 
+export interface RatesResponse {
+  success: boolean;
+  rates: RateItem[];
+}
+
 export const fetchRates = async (): Promise<Rates> => {
-  const res = await fetch('http://localhost:3001/api/rates');
+  const res = await fetch(`${API_BASE}/rates`);
+  
+  if (!res.ok) {
+    throw new Error('Failed to fetch rates');
+  }
+
+  const contentType = res.headers.get('content-type');
+  if (!contentType?.includes('application/json')) {
+    throw new Error('Invalid rates response');
+  }
+
   const data = await res.json();
+  
   if (!data.success || !Array.isArray(data.rates)) {
     throw new Error('Failed to fetch rates');
   }
@@ -33,4 +51,27 @@ export const fetchRates = async (): Promise<Rates> => {
   }
 
   return { gold, silver, raw: data.rates };
+};
+
+export const updateRate = async (
+  metal: 'gold' | 'silver',
+  price: number,
+  purity: GoldPurities | null = null
+): Promise<{ success: boolean; rate: RateItem }> => {
+  const res = await fetch(`${API_BASE}/rates/${metal}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ price, purity }),
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to update rate');
+  }
+
+  const contentType = res.headers.get('content-type');
+  if (!contentType?.includes('application/json')) {
+    throw new Error('Invalid update rate response');
+  }
+
+  return res.json();
 };

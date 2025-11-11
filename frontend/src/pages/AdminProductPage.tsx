@@ -1,7 +1,7 @@
 import Layout from '../components/Layout';
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
-  FaBoxOpen, FaPlus, FaEdit, FaTrash, FaTimes, FaPrint, FaImage,
+  FaBoxOpen, FaPlus, FaEdit, FaTrash, FaTimes, FaPrint, FaImage, FaSync,
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import Fuse from 'fuse.js';
@@ -11,7 +11,9 @@ import {
 } from '../services/productService';
 import { fetchCategories } from '../services/categoryService';
 import { fetchRates } from '../services/rateService';
+import { uploadImage } from '../services/uploadService';
 
+// Type definitions
 export type Product = {
   _id?: string;
   name: string;
@@ -34,6 +36,28 @@ type Category = {
   _id?: string;
   name: string;
 };
+
+// API Response types
+interface ApiResponse<T> {
+  success: boolean;
+  message?: string;
+  data?: T;
+}
+
+interface CategoriesResponse extends ApiResponse<Category[]> {
+  categories?: Category[];
+}
+
+interface ProductsResponse extends ApiResponse<Product[]> {}
+
+interface RatesResponse {
+  gold: {
+    '24K': number;
+    '22K': number;
+    '18K': number;
+  };
+  silver: number;
+}
 
 export default function AdminProductPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -87,6 +111,12 @@ export default function AdminProductPage() {
     [editProduct, form]
   );
 
+  // Reset form function
+  const resetForm = () => {
+    setForm(emptyForm);
+  };
+
+  // Fixed useEffect with proper typing
   useEffect(() => {
     let mounted = true;
     const loadAll = async () => {
@@ -96,16 +126,41 @@ export default function AdminProductPage() {
           fetchRates(),
           fetchCategories(),
         ]);
+        
         if (!mounted) return;
-        setProducts(productData || []);
-        setGoldRates(rateData.gold ?? { '24K': 0, '22K': 0, '18K': 0 });
-        setSilverRate(rateData.silver ?? 0);
 
-        if (Array.isArray(categoryData)) setCategories(categoryData);
-        else if (categoryData?.success && Array.isArray(categoryData.categories)) {
-          setCategories(categoryData.categories);
-        } else if (Array.isArray(categoryData?.data)) {
-          setCategories(categoryData.data);
+        // Handle products response
+        if (Array.isArray(productData)) {
+          setProducts(productData);
+        } else if (productData && typeof productData === 'object') {
+          const productsResponse = productData as ProductsResponse;
+          if (productsResponse.success && Array.isArray(productsResponse.data)) {
+            setProducts(productsResponse.data);
+          } else {
+            setProducts([]);
+          }
+        } else {
+          setProducts([]);
+        }
+
+        // Handle rates response
+        if (rateData && typeof rateData === 'object') {
+          const rates = rateData as RatesResponse;
+          setGoldRates(rates.gold ?? { '24K': 0, '22K': 0, '18K': 0 });
+          setSilverRate(rates.silver ?? 0);
+        }
+
+        // Handle categories response with proper typing
+        if (Array.isArray(categoryData)) {
+          setCategories(categoryData);
+        } else if (categoryData && typeof categoryData === 'object') {
+          const categoriesResponse = categoryData as CategoriesResponse;
+          if (categoriesResponse.success) {
+            // Use categories if available, otherwise use data
+            setCategories(categoriesResponse.categories || categoriesResponse.data || []);
+          } else {
+            setCategories([]);
+          }
         } else {
           setCategories([]);
         }
@@ -120,17 +175,21 @@ export default function AdminProductPage() {
     return () => { mounted = false; };
   }, []);
 
+  // Fixed rate refresh useEffect
   useEffect(() => {
     let cancelled = false;
     const refreshRates = async () => {
       try {
         const newRates = await fetchRates();
         if (cancelled) return;
-        const goldChanged = JSON.stringify(newRates.gold) !== JSON.stringify(goldRates);
-        const silverChanged = newRates.silver !== silverRate;
+        
+        const rates = newRates as RatesResponse;
+        const goldChanged = JSON.stringify(rates.gold) !== JSON.stringify(goldRates);
+        const silverChanged = rates.silver !== silverRate;
+        
         if (goldChanged || silverChanged) {
-          setGoldRates(newRates.gold ?? { '24K': 0, '22K': 0, '18K': 0 });
-          setSilverRate(newRates.silver ?? 0);
+          setGoldRates(rates.gold ?? { '24K': 0, '22K': 0, '18K': 0 });
+          setSilverRate(rates.silver ?? 0);
           setProducts((prev) =>
             prev.map((p) => ({
               ...p,
@@ -240,16 +299,15 @@ export default function AdminProductPage() {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const formData = new FormData();
-    formData.append('image', file);
+    
     try {
-      const res = await fetch('http://localhost:3001/api/products/upload', { method: 'POST', body: formData });
-      const data = await res.json();
+      const data = await uploadImage(file);
+      
       if (data.success) {
         const imageUrl = data.imageUrl;
         setForm((f) => ({ ...f, image: imageUrl }));
         if (editProduct) setEditProduct({ ...editProduct, image: imageUrl });
-        toast.success('Image uploaded');
+        toast.success('Image uploaded successfully');
       } else {
         toast.error('Image upload failed');
       }
@@ -276,9 +334,9 @@ export default function AdminProductPage() {
 
       const res = await createProduct(payload);
       setProducts((prev) => [res, ...prev]);
-      toast.success('Product added');
+      toast.success('Product added successfully');
       setShowModal(false);
-      setForm(emptyForm);
+      resetForm();
       setEditProduct(null);
     } catch (err) {
       console.error('Error saving product', err);
@@ -300,9 +358,9 @@ export default function AdminProductPage() {
       const payload = { ...editProduct, qrCode: `QR-${editProduct.sku}`, price: finalPrice };
       const res = await updateProduct(editProduct._id, payload);
       setProducts((prev) => prev.map((p) => (p._id === editProduct._id ? res : p)));
-      toast.success('Product updated');
+      toast.success('Product updated successfully');
       setEditProduct(null);
-      setForm(emptyForm);
+      resetForm();
       setShowModal(false);
     } catch (err) {
       console.error('Error updating product', err);
@@ -317,11 +375,11 @@ export default function AdminProductPage() {
       await deleteProduct(toDelete);
       setProducts((prev) => prev.filter((p) => p._id !== toDelete));
       setSelectedProducts(prev => prev.filter(p => p !== toDelete));
-      toast.success('Product deleted');
+      toast.success('Product deleted successfully');
       setConfirmDeleteId(null);
       if (editProduct?._id === toDelete) {
         setEditProduct(null);
-        setForm(emptyForm);
+        resetForm();
         setShowModal(false);
       }
     } catch (err) {
@@ -337,7 +395,6 @@ export default function AdminProductPage() {
     }
 
     try {
-      // Delete products one by one
       for (const productId of selectedProducts) {
         await deleteProduct(productId);
       }
@@ -352,7 +409,7 @@ export default function AdminProductPage() {
   };
 
   const openAddModal = () => {
-    setForm(emptyForm);
+    resetForm();
     setEditProduct(null);
     setShowModal(true);
   };
@@ -376,6 +433,12 @@ export default function AdminProductPage() {
       qrCode: prod.qrCode || '',
     });
     setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditProduct(null);
+    resetForm();
   };
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -402,271 +465,321 @@ export default function AdminProductPage() {
 
   const numToValue = (num?: number) => (num && num !== 0 ? String(num) : '');
 
+  // Fixed: Show auto rates info using toast instead of toast.info
+  const showAutoRatesInfo = () => {
+    toast('Rates auto-refresh every 30 seconds', {
+      icon: '🔄',
+      duration: 3000,
+    });
+  };
+
   return (
-    <>
-      <Layout>
-        <h2 className="text-xl font-bold mb-6 text-yellow-700 flex items-center gap-2">
+    <Layout>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-xl font-bold text-yellow-700 flex items-center gap-2">
           <FaBoxOpen /> Products Management
         </h2>
+        <div className="flex gap-2">
+          <button
+            onClick={showAutoRatesInfo}
+            className="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700 flex items-center gap-2 text-sm transition-colors duration-200"
+          >
+            <FaSync /> Auto Rates
+          </button>
+          <button
+            className="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700 flex items-center gap-2 transition-colors duration-200"
+            onClick={openAddModal}
+          >
+            <FaPlus /> Add Product
+          </button>
+        </div>
+      </div>
 
-        {/* Search and Filters */}
-        <div className="mb-4 space-y-3">
+      {/* Search and Filters */}
+      <div className="mb-6 space-y-4">
+        <div className="relative">
           <input
             type="text"
             placeholder="Search products by name, SKU, category, purity, or weight..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full border p-2 rounded"
+            className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
           />
-
-          <div className="flex flex-wrap gap-2">
-            <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="border p-2 rounded text-sm">
-              <option>All Categories</option>
-              {categories.map((cat) => (
-                <option key={cat._id}>{cat.name}</option>
-              ))}
-            </select>
-            <select value={filterWeight} onChange={(e) => setFilterWeight(e.target.value)} className="border p-2 rounded text-sm">
-              <option>Any Weight</option>
-              <option>1g</option>
-              <option>2g</option>
-              <option>5g+</option>
-            </select>
-            <select value={filterPurity} onChange={(e) => setFilterPurity(e.target.value)} className="border p-2 rounded text-sm">
-              <option>Any Purity</option>
-              <option>18K</option>
-              <option>22K</option>
-              <option>24K</option>
-            </select>
-            <select value={filterPrice} onChange={(e) => setFilterPrice(e.target.value)} className="border p-2 rounded text-sm">
-              <option>Any Price</option>
-              <option>Below ₹5,000</option>
-              <option>₹5,000–₹20,000</option>
-              <option>Above ₹20,000</option>
-            </select>
-            <select value={filterAvailability} onChange={(e) => setFilterAvailability(e.target.value)} className="border p-2 rounded text-sm">
-              <option>All</option>
-              <option>Available</option>
-              <option>Sold Out</option>
-            </select>
-          </div>
         </div>
 
-        {/* Bulk Actions */}
-        {selectedProducts.length > 0 && (
-          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded flex justify-between items-center">
-            <span className="text-yellow-800 font-medium">
-              {selectedProducts.length} product(s) selected
-            </span>
-            <button
-              onClick={handleDeleteSelected}
-              className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 flex items-center gap-2 text-sm"
-            >
-              <FaTrash /> Delete Selected
-            </button>
-          </div>
-        )}
-
-        <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
-          <div className="text-sm text-gray-600">
-            Showing {paginatedProducts.length} of {filteredProducts.length} products
-            {filteredProducts.length !== products.length && ` (filtered from ${products.length} total)`}
-          </div>
-
-          <button
-            className="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700 flex items-center gap-2"
-            onClick={openAddModal}
+        <div className="flex flex-wrap gap-3">
+          <select 
+            value={filterCategory} 
+            onChange={(e) => setFilterCategory(e.target.value)} 
+            className="border border-gray-300 p-2 rounded-lg text-sm focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
           >
-            <FaPlus /> Add New Item
+            <option>All Categories</option>
+            {categories.map((cat) => (
+              <option key={cat._id}>{cat.name}</option>
+            ))}
+          </select>
+          <select 
+            value={filterWeight} 
+            onChange={(e) => setFilterWeight(e.target.value)} 
+            className="border border-gray-300 p-2 rounded-lg text-sm focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
+          >
+            <option>Any Weight</option>
+            <option>1g</option>
+            <option>2g</option>
+            <option>5g+</option>
+          </select>
+          <select 
+            value={filterPurity} 
+            onChange={(e) => setFilterPurity(e.target.value)} 
+            className="border border-gray-300 p-2 rounded-lg text-sm focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
+          >
+            <option>Any Purity</option>
+            <option>18K</option>
+            <option>22K</option>
+            <option>24K</option>
+          </select>
+          <select 
+            value={filterPrice} 
+            onChange={(e) => setFilterPrice(e.target.value)} 
+            className="border border-gray-300 p-2 rounded-lg text-sm focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
+          >
+            <option>Any Price</option>
+            <option>Below ₹5,000</option>
+            <option>₹5,000–₹20,000</option>
+            <option>Above ₹20,000</option>
+          </select>
+          <select 
+            value={filterAvailability} 
+            onChange={(e) => setFilterAvailability(e.target.value)} 
+            className="border border-gray-300 p-2 rounded-lg text-sm focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
+          >
+            <option>All</option>
+            <option>Available</option>
+            <option>Sold Out</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Bulk Actions */}
+      {selectedProducts.length > 0 && (
+        <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex justify-between items-center">
+          <span className="text-yellow-800 font-medium">
+            {selectedProducts.length} product(s) selected
+          </span>
+          <button
+            onClick={handleDeleteSelected}
+            className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center gap-2 text-sm transition-colors duration-200"
+          >
+            <FaTrash /> Delete Selected
           </button>
         </div>
+      )}
 
-        {/* Product Table */}
-        <div className="bg-white rounded shadow-sm p-4 overflow-x-auto">
-          <table className="w-full text-sm border">
-            <thead className="bg-gray-100">
+      {/* Products Summary */}
+      <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
+        <div className="text-sm text-gray-600">
+          Showing {paginatedProducts.length} of {filteredProducts.length} products
+          {filteredProducts.length !== products.length && ` (filtered from ${products.length} total)`}
+        </div>
+      </div>
+
+      {/* Product Table */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="p-3 text-center w-12">
+                <input
+                  type="checkbox"
+                  onChange={handleSelectAll}
+                  checked={selectedProducts.length === paginatedProducts.length && paginatedProducts.length > 0}
+                  className="rounded border-gray-300 text-yellow-600 focus:ring-yellow-500"
+                />
+              </th>
+              <th className="p-3 text-left font-semibold text-gray-700">Image</th>
+              <th className="p-3 text-left font-semibold text-gray-700">Item Name</th>
+              <th className="p-3 text-left font-semibold text-gray-700">SKU</th>
+              <th className="p-3 text-left font-semibold text-gray-700">Category</th>
+              <th className="p-3 text-left font-semibold text-gray-700">Weight</th>
+              <th className="p-3 text-left font-semibold text-gray-700">Purity</th>
+              <th className="p-3 text-left font-semibold text-gray-700">Wastage</th>
+              <th className="p-3 text-left font-semibold text-gray-700">Making Cost</th>
+              <th className="p-3 text-left font-semibold text-gray-700">Stone Price</th>
+              <th className="p-3 text-left font-semibold text-gray-700">Price</th>
+              <th className="p-3 text-center font-semibold text-gray-700">Status</th>
+              <th className="p-3 text-center font-semibold text-gray-700">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
               <tr>
-                <th className="p-2 text-center w-12">
-                  <input
-                    type="checkbox"
-                    onChange={handleSelectAll}
-                    checked={selectedProducts.length === paginatedProducts.length && paginatedProducts.length > 0}
-                  />
-                </th>
-                <th className="p-2 text-left">Image</th>
-                <th className="p-2 text-left">Item Name</th>
-                <th className="p-2 text-left">SKU</th>
-                <th className="p-2 text-left">Category</th>
-                <th className="p-2 text-left">Weight</th>
-                <th className="p-2 text-left">Purity</th>
-                <th className="p-2 text-left">Wastage</th>
-                <th className="p-2 text-left">Making Cost</th>
-                <th className="p-2 text-left">Stone Price</th>
-                <th className="p-2 text-left">Price</th>
-                <th className="p-2 text-center">Status</th>
-                <th className="p-2 text-center">Actions</th>
+                <td colSpan={13} className="text-center text-gray-500 py-8">
+                  <div className="flex justify-center items-center">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-yellow-600 mr-2"></div>
+                    Loading products...
+                  </div>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={13} className="text-center py-4 text-gray-500">Loading...</td>
-                </tr>
-              ) : paginatedProducts.length === 0 ? (
-                <tr>
-                  <td colSpan={13} className="text-center py-4 text-gray-500">No products found</td>
-                </tr>
-              ) : (
-                paginatedProducts.map((prod) => (
-                  <tr key={prod._id} className="border-t hover:bg-gray-50">
-                    <td className="p-2 text-center">
-                      <input
-                        type="checkbox"
-                        checked={selectedProducts.includes(prod._id!)}
-                        onChange={() => handleSelectProduct(prod._id!)}
+            ) : paginatedProducts.length === 0 ? (
+              <tr>
+                <td colSpan={13} className="text-center text-gray-500 py-8">
+                  No products found. Click "Add Product" to create one.
+                </td>
+              </tr>
+            ) : (
+              paginatedProducts.map((prod) => (
+                <tr key={prod._id} className="border-t border-gray-100 hover:bg-gray-50 transition-colors duration-150">
+                  <td className="p-3 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedProducts.includes(prod._id!)}
+                      onChange={() => handleSelectProduct(prod._id!)}
+                      className="rounded border-gray-300 text-yellow-600 focus:ring-yellow-500"
+                    />
+                  </td>
+                  <td className="p-3">
+                    {prod.image ? (
+                      <img
+                        src={prod.image}
+                        alt={prod.name}
+                        className="w-10 h-10 object-cover rounded-lg"
                       />
-                    </td>
-                    <td className="p-2">
-                      {prod.image ? (
-                        <img
-                          src={`http://localhost:3001${prod.image}`}
-                          alt={prod.name}
-                          className="w-10 h-10 object-cover rounded"
-                        />
-                      ) : (
-                        <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center">
-                          <FaImage className="text-gray-400" />
-                        </div>
-                      )}
-                    </td>
-                    <td className="p-2">{prod.name}</td>
-                    <td className="p-2">{prod.sku}</td>
-                    <td className="p-2">{prod.category || '-'}</td>
-                    <td className="p-2">{prod.weight || '-'}</td>
-                    <td className="p-2">{prod.purity || '-'}</td>
-                    <td className="p-2">
-                      {prod.wastage ? `${prod.wastage}%` : '-'}
-                    </td>
-                    <td className="p-2">
-                      {prod.makingCharges ? `₹${prod.makingCharges.toLocaleString()}` : '-'}
-                    </td>
-                    <td className="p-2">
-                      {prod.stonePrice ? `₹${prod.stonePrice.toLocaleString()}` : '-'}
-                    </td>
-                    <td className="p-2 font-semibold">
-                      ₹{Number(prod.price || 0).toLocaleString()}
-                    </td>
-                    <td className="p-2 text-center">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        prod.available === false 
-                          ? 'bg-red-100 text-red-800' 
-                          : 'bg-green-100 text-green-800'
-                      }`}>
-                        {prod.available === false ? 'Sold Out' : 'Available'}
-                      </span>
-                    </td>
-                    <td className="p-2 text-center flex justify-center gap-2">
+                    ) : (
+                      <div className="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center">
+                        <FaImage className="text-gray-400" />
+                      </div>
+                    )}
+                  </td>
+                  <td className="p-3 font-medium">{prod.name}</td>
+                  <td className="p-3 font-mono text-sm">{prod.sku}</td>
+                  <td className="p-3">{prod.category || '-'}</td>
+                  <td className="p-3">{prod.weight || '-'}</td>
+                  <td className="p-3">{prod.purity || '-'}</td>
+                  <td className="p-3">
+                    {prod.wastage ? `${prod.wastage}%` : '-'}
+                  </td>
+                  <td className="p-3">
+                    {prod.makingCharges ? `₹${prod.makingCharges.toLocaleString()}` : '-'}
+                  </td>
+                  <td className="p-3">
+                    {prod.stonePrice ? `₹${prod.stonePrice.toLocaleString()}` : '-'}
+                  </td>
+                  <td className="p-3 font-semibold text-green-600">
+                    ₹{Number(prod.price || 0).toLocaleString()}
+                  </td>
+                  <td className="p-3 text-center">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      prod.available === false 
+                        ? 'bg-red-100 text-red-800' 
+                        : 'bg-green-100 text-green-800'
+                    }`}>
+                      {prod.available === false ? 'Sold Out' : 'Available'}
+                    </span>
+                  </td>
+                  <td className="p-3 text-center">
+                    <div className="flex justify-center gap-2">
                       <button
-                        className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
+                        className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50 transition-colors duration-150"
                         onClick={() => openEditModal(prod)}
                         aria-label={`Edit ${prod.name}`}
+                        title="Edit Product"
                       >
                         <FaEdit />
                       </button>
                       <button
-                        className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
+                        className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 transition-colors duration-150"
                         onClick={() => setConfirmDeleteId(prod._id ?? null)}
                         aria-label={`Delete ${prod.name}`}
+                        title="Delete Product"
                       >
                         <FaTrash />
                       </button>
                       <button
-                        className="text-gray-600 hover:text-gray-800 p-1 rounded hover:bg-gray-50"
+                        className="text-gray-600 hover:text-gray-800 p-1 rounded hover:bg-gray-50 transition-colors duration-150"
                         onClick={() => { openEditModal(prod); setTimeout(() => handlePrint(), 150); }}
                         aria-label={`Print ${prod.name}`}
+                        title="Print QR Code"
                       >
                         <FaPrint />
                       </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex justify-between items-center mt-4">
-              <div className="text-sm text-gray-600">
-                Page {currentPage} of {totalPages}
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                  disabled={currentPage === 1}
-                  className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                >
-                  Previous
-                </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                  <button
-                    key={page}
-                    onClick={() => setCurrentPage(page)}
-                    className={`px-3 py-1 border rounded ${
-                      currentPage === page 
-                        ? 'bg-yellow-600 text-white border-yellow-600' 
-                        : 'hover:bg-gray-50'
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-                <button
-                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                >
-                  Next
-                </button>
-              </div>
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-200">
+            <div className="text-sm text-gray-600">
+              Page {currentPage} of {totalPages}
             </div>
-          )}
-        </div>
-      </Layout>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors duration-150"
+              >
+                Previous
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`px-3 py-1 border rounded-lg transition-colors duration-150 ${
+                    currentPage === page 
+                      ? 'bg-yellow-600 text-white border-yellow-600' 
+                      : 'border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors duration-150"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
-      {/* Modal for Add/Edit Product */}
+      {/* ➕ Add / ✏️ Edit Modal */}
       {(showModal || editProduct) && (
-        <div
-          className="fixed inset-0 z-40 flex items-center justify-center bg-[#99A1AF]/90"
-          onClick={() => { setShowModal(false); setEditProduct(null); setForm(emptyForm); }}
-        >
-          <div
-            className="bg-white shadow-xl p-6 w-full max-w-md text-sm relative max-h-[80vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto z-50 relative">
             <button
-              onClick={() => { setShowModal(false); setEditProduct(null); setForm(emptyForm); }}
-              className="absolute top-3 right-3 text-gray-500 hover:text-red-500 text-lg"
+              onClick={closeModal}
+              className="absolute top-4 right-4 text-gray-500 hover:text-red-500 text-xl transition-colors duration-150"
+              aria-label="Close"
             >
               <FaTimes />
             </button>
 
             <h2 className="text-lg font-semibold mb-4 text-center text-gray-800">
-              {editProduct ? 'Edit Product' : 'Add New Item'}
+              {editProduct ? 'Edit Product' : 'Add New Product'}
             </h2>
 
             {/* Image Upload */}
-            <div className="flex justify-center mb-4">
+            <div className="flex justify-center mb-6">
               <label className="cursor-pointer relative">
-                <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center border border-gray-300 hover:bg-gray-200 transition overflow-hidden">
+                <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center border-2 border-dashed border-gray-300 hover:bg-gray-200 transition-colors duration-150 overflow-hidden">
                   {form.image ? (
                     <img
-                      src={`http://localhost:3001${form.image}`}
+                      src={form.image}
                       alt="Preview"
                       className="w-full h-full object-cover rounded-full"
                     />
                   ) : (
-                    <FaPlus className="text-gray-500 text-lg" />
+                    <div className="text-center">
+                      <FaPlus className="text-gray-400 text-xl mb-1 mx-auto" />
+                      <span className="text-xs text-gray-500">Add Image</span>
+                    </div>
                   )}
                 </div>
                 <input
@@ -678,65 +791,92 @@ export default function AdminProductPage() {
               </label>
             </div>
 
-            <div className="space-y-3">
-              <input
-                type="text"
-                placeholder="Item Name"
-                value={form.name}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (editProduct) setEditProduct({ ...editProduct, name: v });
-                  setForm({ ...form, name: v });
-                }}
-                className="w-full border border-gray-300 p-2 rounded-md"
-              />
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Item Name *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Enter product name"
+                  value={form.name}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (editProduct) setEditProduct({ ...editProduct, name: v });
+                    setForm({ ...form, name: v });
+                  }}
+                  className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
+                  required
+                />
+              </div>
 
-              <select
-                value={form.category ?? ''}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (editProduct) setEditProduct({ ...editProduct, category: v });
-                  setForm({ ...form, category: v });
-                }}
-                className="w-full border border-gray-300 p-2 rounded-md"
-              >
-                <option value="">Select Category</option>
-                {categories.map((cat) => (
-                  <option key={cat._id} value={cat.name}>
-                    {cat.name}
-                  </option>
-                ))}
-              </select>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Category *
+                </label>
+                <select
+                  value={form.category ?? ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (editProduct) setEditProduct({ ...editProduct, category: v });
+                    setForm({ ...form, category: v });
+                  }}
+                  className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
+                  required
+                >
+                  <option value="">Select Category</option>
+                  {categories.map((cat) => (
+                    <option key={cat._id} value={cat.name}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-              <select
-                value={form.metal}
-                onChange={(e) => {
-                  const v = e.target.value as 'gold' | 'silver';
-                  if (editProduct) setEditProduct({ ...editProduct, metal: v });
-                  setForm({ ...form, metal: v, purity: '' });
-                }}
-                className="w-full border border-gray-300 p-2 rounded-md"
-              >
-                <option value="">Select Metal</option>
-                <option value="gold">Gold</option>
-                <option value="silver">Silver</option>
-              </select>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Metal Type *
+                </label>
+                <select
+                  value={form.metal}
+                  onChange={(e) => {
+                    const v = e.target.value as 'gold' | 'silver';
+                    if (editProduct) setEditProduct({ ...editProduct, metal: v });
+                    setForm({ ...form, metal: v, purity: '' });
+                  }}
+                  className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
+                  required
+                >
+                  <option value="">Select Metal</option>
+                  <option value="gold">Gold</option>
+                  <option value="silver">Silver</option>
+                </select>
+              </div>
 
-              <input
-                type="text"
-                placeholder="Weight (g)"
-                value={form.weight ?? ''}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (editProduct) setEditProduct({ ...editProduct, weight: v });
-                  setForm({ ...form, weight: v });
-                }}
-                className="w-full border border-gray-300 p-2 rounded-md"
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Weight (grams) *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Enter weight in grams"
+                  value={form.weight ?? ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (editProduct) setEditProduct({ ...editProduct, weight: v });
+                    setForm({ ...form, weight: v });
+                  }}
+                  className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
+                  required
+                />
+              </div>
 
               {/* Purity Dropdown + Rate Preview */}
               {form.metal === 'gold' && (
-                <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Purity *
+                  </label>
                   <select
                     value={form.purity ?? ''}
                     onChange={(e) => {
@@ -744,95 +884,119 @@ export default function AdminProductPage() {
                       if (editProduct) setEditProduct({ ...editProduct, purity: v });
                       setForm({ ...form, purity: v });
                     }}
-                    className="w-full border border-gray-300 p-2 rounded-md"
+                    className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
+                    required
                   >
                     <option value="">Select Purity</option>
                     <option value="24K">24K</option>
                     <option value="22K">22K</option>
                     <option value="18K">18K</option>
                   </select>
-
                   {form.purity && (
-                    <div className="text-sm text-gray-500">
-                      Current Rate: ₹{goldRates[form.purity as '24K' | '22K' | '18K']?.toLocaleString('en-IN')}
+                    <div className="text-sm text-green-600 mt-1">
+                      Current {form.purity} Gold Rate: ₹{goldRates[form.purity as '24K' | '22K' | '18K']?.toLocaleString('en-IN')}/g
                     </div>
                   )}
-                </>
-              )}
-
-              {form.metal === 'silver' && (
-                <div className="text-sm text-gray-500">
-                  Silver Rate: ₹{silverRate.toLocaleString('en-IN')}
                 </div>
               )}
 
-              <input
-                type="number"
-                placeholder="Making Charges (₹)"
-                value={numToValue(form.makingCharges)}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  const val = v === '' ? 0 : parseFloat(v);
-                  if (editProduct) setEditProduct({ ...editProduct, makingCharges: val });
-                  setForm({ ...form, makingCharges: val });
-                }}
-                className="w-full border border-gray-300 p-2 rounded-md"
-                min="0"
-              />
+              {form.metal === 'silver' && (
+                <div className="text-sm text-green-600 p-2 bg-green-50 rounded-md">
+                  Current Silver Rate: ₹{silverRate.toLocaleString('en-IN')}/g
+                </div>
+              )}
 
-              <input
-                type="number"
-                placeholder="Wastage (%)"
-                value={numToValue(form.wastage)}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  const val = v === '' ? 0 : parseFloat(v);
-                  if (editProduct) setEditProduct({ ...editProduct, wastage: val });
-                  setForm({ ...form, wastage: val });
-                }}
-                className="w-full border border-gray-300 p-2 rounded-md"
-                min="0"
-              />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Making Charges (₹)
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={numToValue(form.makingCharges)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      const val = v === '' ? 0 : parseFloat(v);
+                      if (editProduct) setEditProduct({ ...editProduct, makingCharges: val });
+                      setForm({ ...form, makingCharges: val });
+                    }}
+                    className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
+                    min="0"
+                  />
+                </div>
 
-              <input
-                type="number"
-                placeholder="Stone Price (₹)"
-                value={numToValue(form.stonePrice)}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  const val = v === '' ? 0 : parseFloat(v);
-                  if (editProduct) setEditProduct({ ...editProduct, stonePrice: val });
-                  setForm({ ...form, stonePrice: val });
-                }}
-                className="w-full border border-gray-300 p-2 rounded-md"
-                min="0"
-              />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Wastage (%)
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={numToValue(form.wastage)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      const val = v === '' ? 0 : parseFloat(v);
+                      if (editProduct) setEditProduct({ ...editProduct, wastage: val });
+                      setForm({ ...form, wastage: val });
+                    }}
+                    className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
+                    min="0"
+                  />
+                </div>
+              </div>
 
-              <textarea
-                placeholder="Description"
-                value={form.description ?? ''}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (editProduct) setEditProduct({ ...editProduct, description: v });
-                  setForm({ ...form, description: v });
-                }}
-                className="w-full border border-gray-300 p-2 rounded-md"
-                rows={2}
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Stone Price (₹)
+                </label>
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={numToValue(form.stonePrice)}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const val = v === '' ? 0 : parseFloat(v);
+                    if (editProduct) setEditProduct({ ...editProduct, stonePrice: val });
+                    setForm({ ...form, stonePrice: val });
+                  }}
+                  className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
+                  min="0"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  placeholder="Enter product description"
+                  value={form.description ?? ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (editProduct) setEditProduct({ ...editProduct, description: v });
+                    setForm({ ...form, description: v });
+                  }}
+                  className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
+                  rows={3}
+                />
+              </div>
 
               {form.weight && (
-                <div className="text-sm text-gray-600">
-                  Estimated Price: ₹{estimatedPrice.toLocaleString('en-IN')}
+                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="text-sm font-semibold text-blue-800">
+                    Estimated Price: ₹{estimatedPrice.toLocaleString('en-IN')}
+                  </div>
                 </div>
               )}
 
               {/* QR Code Section */}
               {(form.sku || editProduct?.sku) && (
-                <div className="flex items-center justify-between mt-2">
+                <div className="flex items-center justify-between mt-2 p-3 bg-gray-50 rounded-lg">
                   <label className="text-gray-700 font-medium">QR Code</label>
                   <button
                     onClick={handlePrint}
-                    className="text-yellow-600 border border-yellow-600 px-3 py-1 rounded-md hover:bg-yellow-50 text-sm flex items-center gap-2"
+                    className="text-yellow-600 border border-yellow-600 px-3 py-1 rounded-md hover:bg-yellow-50 text-sm flex items-center gap-2 transition-colors duration-150"
                   >
                     Generate <FaPrint />
                   </button>
@@ -840,105 +1004,152 @@ export default function AdminProductPage() {
               )}
             </div>
 
-            <div className="flex justify-end gap-3 mt-6">
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
               <button
-                onClick={() => { setShowModal(false); setEditProduct(null); setForm(emptyForm); }}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-100"
+                onClick={closeModal}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors duration-150"
               >
                 Cancel
               </button>
               <button
                 onClick={editProduct ? handleUpdateProduct : handleSaveProduct}
                 disabled={!canSave}
-                className={`px-4 py-2 rounded-md ${canSave ? 'bg-yellow-600 text-white hover:bg-yellow-700' : 'bg-gray-300 text-gray-600 cursor-not-allowed'}`}
+                className={`px-4 py-2 rounded-md transition-colors duration-150 flex items-center gap-2 ${
+                  canSave 
+                    ? 'bg-yellow-600 text-white hover:bg-yellow-700' 
+                    : 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                }`}
               >
-                {editProduct ? 'Save Changes' : 'Add Item'}
+                {editProduct ? 'Save Changes' : 'Add Product'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Delete Confirmation Dialog */}
+      {/* 🗑️ Delete Confirmation Modal */}
       {confirmDeleteId && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#99A1AF]/90">
-          <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-md text-sm z-50 relative">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md z-50 relative">
             <button
               onClick={() => setConfirmDeleteId(null)}
-              className="absolute top-4 right-4 text-gray-500 hover:text-red-500 text-xl"
+              className="absolute top-4 right-4 text-gray-500 hover:text-red-500 text-xl transition-colors duration-150"
+              aria-label="Close"
             >
               <FaTimes />
             </button>
-            <h2 className="text-lg font-semibold mb-4 text-center text-red-600">
-              Delete Product
-            </h2>
-            <p className="text-center text-gray-700 mb-6">
-              Are you sure you want to permanently delete this product?
-            </p>
-            <div className="flex justify-center gap-4">
-              <button
-                onClick={() => setConfirmDeleteId(null)}
-                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDeleteProduct(confirmDeleteId ?? undefined)}
-                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-              >
-                Confirm Delete
-              </button>
+
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                <FaTrash className="h-6 w-6 text-red-600" />
+              </div>
+              
+              <h2 className="text-lg font-semibold mb-2 text-red-600">
+                Delete Product
+              </h2>
+
+              <p className="text-gray-700 mb-6">
+                Are you sure you want to permanently delete this product? This action cannot be undone.
+              </p>
+
+              <div className="flex justify-center gap-3">
+                <button
+                  onClick={() => setConfirmDeleteId(null)}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors duration-150"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleDeleteProduct(confirmDeleteId ?? undefined)}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors duration-150 flex items-center gap-2"
+                >
+                  <FaTrash /> Confirm Delete
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-
-      {/* Hidden QR Print Block */}
-      <div style={{ display: 'none' }}>
-        <div ref={qrRef}>
-          <div style={{
-            width: '100mm',
-            height: '15mm',
-            fontFamily: 'Arial, sans-serif',
-            fontSize: '8px',
-            padding: '1mm',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            border: '1px solid #ccc',
-            boxSizing: 'border-box'
-          }}>
-            {/* Left side - Text information */}
-            <div style={{ flex: 1, paddingRight: '2mm' }}>
-              <div style={{ fontWeight: 'bold', fontSize: '9px', marginBottom: '1px' }}>
-                {form.name || editProduct?.name}
-              </div>
-              <div style={{ marginBottom: '1px' }}>
-                <strong>SKU:</strong> {form.sku || editProduct?.sku}
-              </div>
-              <div style={{ display: 'flex', gap: '3mm', fontSize: '7px' }}>
-                <span><strong>Metal:</strong> {(form.metal || editProduct?.metal)?.toUpperCase()}</span>
-                <span><strong>Purity:</strong> {form.purity || editProduct?.purity}</span>
-                <span><strong>Wt:</strong> {form.weight || editProduct?.weight}g</span>
-              </div>
-            </div>
-            
-            {/* Right side - QR Code */}
-            <div style={{ width: '12mm', height: '12mm', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(form.sku || editProduct?.sku || '')}`}
-                alt="QR Code"
-                style={{ 
-                  width: '100%', 
-                  height: '100%',
-                  objectFit: 'contain'
-                }}
-              />
-            </div>
-          </div>
+{/* Hidden QR Print Block - Printable area from 0 to 65mm from top */}
+<div style={{ display: 'none' }}>
+  <div ref={qrRef}>
+    <div style={{
+      width: '15mm',
+      height: '65mm', // Printable area height (0 to 65mm from top)
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '6px',
+      padding: '0.5mm',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      boxSizing: 'border-box',
+      border: '1px solid #ccc'
+      // No marginTop needed since printing starts from top (0mm)
+    }}>
+      {/* Product Name - Top section */}
+      <div style={{ 
+        textAlign: 'center'
+      }}>
+        <div style={{ 
+          fontWeight: 'bold', 
+          fontSize: '7px', 
+          marginBottom: '0.5mm',
+          wordBreak: 'break-word',
+          maxHeight: '20mm',
+          overflow: 'hidden',
+          lineHeight: '1.1'
+        }}>
+          {form.name || editProduct?.name}
         </div>
       </div>
-    </>
+      
+      {/* QR Code - Middle section */}
+      <div style={{ 
+        width: '12mm', 
+        height: '12mm', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        margin: '1mm 0'
+      }}>
+        <img
+          src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(form.sku || editProduct?.sku || '')}`}
+          alt="QR Code"
+          style={{ 
+            width: '100%', 
+            height: '100%',
+            objectFit: 'contain'
+          }}
+        />
+      </div>
+      
+      {/* Product Details - Bottom section */}
+      <div style={{ 
+        textAlign: 'center'
+      }}>
+        <div style={{ 
+          marginBottom: '0.5mm',
+          fontWeight: 'bold'
+        }}>
+          SKU: {form.sku || editProduct?.sku}
+        </div>
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: 'column',
+          gap: '0.3mm',
+          fontSize: '5.5px',
+          lineHeight: '1.1'
+        }}>
+          <span><strong>M:</strong> {(form.metal || editProduct?.metal)?.toUpperCase()}</span>
+          <span><strong>P:</strong> {form.purity || editProduct?.purity}</span>
+          <span><strong>W:</strong> {form.weight || editProduct?.weight}g</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    </Layout>
   );
 }
