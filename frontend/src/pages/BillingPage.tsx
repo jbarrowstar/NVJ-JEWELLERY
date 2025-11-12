@@ -4,7 +4,7 @@ import { fetchProducts, markProductAsSold } from '../services/productService';
 import { fetchCustomers, saveCustomer } from '../services/customerService';
 import { saveOrder } from '../services/orderService';
 import { AiOutlineDelete, AiOutlineProduct } from 'react-icons/ai';
-import { FaShoppingCart, FaUser, FaPercentage, FaCalculator, FaTimes, FaFileInvoice, FaRupeeSign, FaSync } from 'react-icons/fa';
+import { FaShoppingCart, FaUser, FaPercentage, FaCalculator, FaTimes, FaFileInvoice, FaRupeeSign, FaSync, FaImage } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import Fuse from 'fuse.js';
 import InvoiceContent from '../components/InvoiceContent';
@@ -57,7 +57,7 @@ const validateImageUrl = (url: string | undefined): boolean => {
     const parsedUrl = new URL(url, window.location.origin);
     return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
   } catch {
-    return typeof url === 'string' && url.length > 0;
+    return typeof url === 'string' && url.length > 0 && !url.includes('undefined') && !url.includes('null');
   }
 };
 
@@ -109,6 +109,9 @@ export default function BillingPage() {
 
   const [lastOrder, setLastOrder] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  
+  // Track failed images to prevent infinite retries
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
 
   // Phone number validation
   const validatePhone = (phone: string): boolean => {
@@ -595,6 +598,7 @@ export default function BillingPage() {
     setAppliedDiscount(0);
     setDiscountValue(0);
     setShowInvoiceModal(false);
+    setFailedImages(new Set()); // Reset failed images on new order
     toast.success('New order started');
   };
 
@@ -614,6 +618,7 @@ export default function BillingPage() {
       setSuggestedItems(safeItems);
       setFilteredItems(safeItems);
       setProductFuse(new Fuse(safeItems, { keys: ['name', 'sku'], threshold: 0.3 }));
+      setFailedImages(new Set()); // Reset failed images on refresh
       toast.success('Products refreshed');
     } catch (err) {
       console.error('Product refresh error:', err);
@@ -713,18 +718,25 @@ export default function BillingPage() {
                       className="border border-gray-200 rounded-lg p-4 bg-white hover:shadow-md transition-shadow duration-200 flex flex-col items-center text-center"
                     >
                       <div className="h-20 w-20 rounded-lg mb-3 bg-gray-100 flex items-center justify-center overflow-hidden">
-                        <img
-                          src={getImageUrl(item.image)}
-                          alt={item.name}
-                          className="h-full w-full object-cover"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.src = '/default.jpg';
-                          }}
-                          onLoad={() => {
-                            console.log(`Successfully loaded image for: ${item.name}`);
-                          }}
-                        />
+                        {!failedImages.has(item.sku) && item.image ? (
+                          <img
+                            src={getImageUrl(item.image)}
+                            alt={item.name}
+                            className="h-full w-full object-cover"
+                            onError={() => {
+                              console.warn(`Image failed to load for ${item.name}:`, item.image);
+                              // Add to failed images set to prevent retries
+                              setFailedImages(prev => new Set(prev).add(item.sku));
+                            }}
+                            onLoad={() => {
+                              console.log(`Successfully loaded image for: ${item.name}`);
+                            }}
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gray-200 flex items-center justify-center rounded-lg">
+                            <FaImage className="h-8 w-8 text-gray-400" />
+                          </div>
+                        )}
                       </div>
                       <span className="font-semibold text-sm text-gray-800 mb-1 line-clamp-2">{item.name}</span>
                       <span className="text-sm text-gray-600 mb-3">

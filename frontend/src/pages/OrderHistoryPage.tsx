@@ -57,6 +57,7 @@ export default function OrderHistoryPage() {
   const [fuse, setFuse] = useState<Fuse<Order> | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [checkingReturn, setCheckingReturn] = useState<string | null>(null);
   const itemsPerPage = 30;
 
   useEffect(() => {
@@ -121,17 +122,29 @@ export default function OrderHistoryPage() {
   }, [searchTerm, selectedDate]);
 
   const handleReturn = async (order: Order) => {
+    const orderId = order.orderId || order._id;
+    
     try {
-      const exists = await checkReturnExists(order._id.trim());
-      if (exists) {
+      setCheckingReturn(orderId);
+      
+      // Check if return already exists
+      const returnExists = await checkReturnExists(orderId);
+      
+      if (returnExists) {
         toast.error('Return already processed for this order.');
         return;
       }
+      
       setReturnOrder(order);
       setShowReturnModal(true);
     } catch (err) {
       console.error('Return check error:', err);
-      toast.error('Server error while checking return status');
+      // Even if check fails, allow user to proceed with return
+      toast.error('Unable to verify return status. Proceeding with return...');
+      setReturnOrder(order);
+      setShowReturnModal(true);
+    } finally {
+      setCheckingReturn(null);
     }
   };
 
@@ -252,10 +265,8 @@ export default function OrderHistoryPage() {
         setReturnReason('');
         setReturnType('');
 
-        const updatedReturns = await fetchReturns();
-        if (updatedReturns.success) {
-          setReturnedOrderIds(updatedReturns.returns.map((r: any) => r.orderId));
-        }
+        // Update returned order IDs
+        setReturnedOrderIds(prev => [...prev, returnOrder.orderId || returnOrder._id]);
       } else {
         toast.error(data.message || 'Failed to process return');
       }
@@ -374,62 +385,76 @@ export default function OrderHistoryPage() {
                   </td>
                 </tr>
               ) : (
-                paginatedOrders.map((order, idx) => (
-                  <tr key={idx} className="border-t border-gray-100 hover:bg-gray-50 transition-colors duration-150">
-                    <td className="p-3 font-medium">{order.orderId || order._id}</td>
-                    <td className="p-3">
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <span>{order.date}</span>
-                        <span className="text-gray-400">|</span>
-                        <span>{order.time}</span>
-                      </div>
-                    </td>
-                    <td className="p-3">
-                      <div className="font-medium">{order.customer.name}</div>
-                    </td>
-                    <td className="p-3 text-center">
-                      <span className="inline-flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
-                        {order.items.length}
-                      </span>
-                    </td>
-                    <td className="p-3 font-mono text-sm">{order.invoiceNumber}</td>
-                    <td className="p-3">
-                      <span className="capitalize">{getPaymentType(order)}</span>
-                    </td>
-                    <td className="p-3 text-right font-semibold text-green-600">
-                      ₹{order.grandTotal.toLocaleString()}
-                    </td>
-                    <td className="p-3 text-center">
-                      <div className="flex justify-center gap-2">
-                        <button
-                          className="text-yellow-600 hover:text-yellow-800 p-1 rounded hover:bg-yellow-50 transition-colors duration-150"
-                          title="Print Invoice"
-                          onClick={() => {
-                            setPrintOrder(order);
-                            setTimeout(() => handlePrint(), 300);
-                          }}
-                        >
-                          <FaPrint />
-                        </button>
+                paginatedOrders.map((order, idx) => {
+                  const orderId = order.orderId || order._id;
+                  const isReturned = returnedOrderIds.includes(orderId);
+                  const isChecking = checkingReturn === orderId;
 
-                        <button
-                          className={`p-1 rounded transition-colors duration-150 ${
-                            returnedOrderIds.includes(order.orderId || order._id)
-                              ? 'text-gray-400 cursor-not-allowed'
-                              : 'text-red-600 hover:text-red-800 hover:bg-red-50'
-                          }`}
-                          onClick={() =>
-                            !returnedOrderIds.includes(order.orderId || order._id) &&
-                            handleReturn(order)
-                          }
-                          title={returnedOrderIds.includes(order.orderId || order._id) ? "Return Already Processed" : "Return Order"}
-                        >
-                          <FaUndoAlt />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                  return (
+                    <tr key={idx} className="border-t border-gray-100 hover:bg-gray-50 transition-colors duration-150">
+                      <td className="p-3 font-medium">{orderId}</td>
+                      <td className="p-3">
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <span>{order.date}</span>
+                          <span className="text-gray-400">|</span>
+                          <span>{order.time}</span>
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <div className="font-medium">{order.customer.name}</div>
+                      </td>
+                      <td className="p-3 text-center">
+                        <span className="inline-flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                          {order.items.length}
+                        </span>
+                      </td>
+                      <td className="p-3 font-mono text-sm">{order.invoiceNumber}</td>
+                      <td className="p-3">
+                        <span className="capitalize">{getPaymentType(order)}</span>
+                      </td>
+                      <td className="p-3 text-right font-semibold text-green-600">
+                        ₹{order.grandTotal.toLocaleString()}
+                      </td>
+                      <td className="p-3 text-center">
+                        <div className="flex justify-center gap-2">
+                          <button
+                            className="text-yellow-600 hover:text-yellow-800 p-1 rounded hover:bg-yellow-50 transition-colors duration-150"
+                            title="Print Invoice"
+                            onClick={() => {
+                              setPrintOrder(order);
+                              setTimeout(() => handlePrint(), 300);
+                            }}
+                          >
+                            <FaPrint />
+                          </button>
+
+                          <button
+                            className={`p-1 rounded transition-colors duration-150 ${
+                              isReturned || isChecking
+                                ? 'text-gray-400 cursor-not-allowed'
+                                : 'text-red-600 hover:text-red-800 hover:bg-red-50'
+                            }`}
+                            onClick={() => !isReturned && !isChecking && handleReturn(order)}
+                            disabled={isReturned || isChecking}
+                            title={
+                              isReturned 
+                                ? "Return Already Processed" 
+                                : isChecking
+                                ? "Checking return status..."
+                                : "Return Order"
+                            }
+                          >
+                            {isChecking ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                            ) : (
+                              <FaUndoAlt />
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
