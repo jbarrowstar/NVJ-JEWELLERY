@@ -750,283 +750,297 @@ export default function AdminProductPage() {
         )}
       </div>
 
-      {/* ➕ Add / ✏️ Edit Modal */}
-      {(showModal || editProduct) && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto z-50 relative">
-            <button
-              onClick={closeModal}
-              className="absolute top-4 right-4 text-gray-500 hover:text-red-500 text-xl transition-colors duration-150"
-              aria-label="Close"
-            >
-              <FaTimes />
-            </button>
+    
+{/* ➕ Add / ✏️ Edit Modal */}
+{(showModal || editProduct) && (
+  <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-4xl max-h-[80vh] overflow-y-auto z-50 relative">
+      <button
+        onClick={closeModal}
+        className="absolute top-4 right-4 text-gray-500 hover:text-red-500 text-xl transition-colors duration-150"
+        aria-label="Close"
+      >
+        <FaTimes />
+      </button>
 
-            <h2 className="text-lg font-semibold mb-4 text-center text-gray-800">
-              {editProduct ? 'Edit Product' : 'Add New Product'}
-            </h2>
+      <h2 className="text-lg font-semibold mb-6 text-center text-gray-800">
+        {editProduct ? 'Edit Product' : 'Add New Product'}
+      </h2>
 
-            {/* Image Upload */}
-            <div className="flex justify-center mb-6">
-              <label className="cursor-pointer relative">
-                <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center border-2 border-dashed border-gray-300 hover:bg-gray-200 transition-colors duration-150 overflow-hidden">
-                  {form.image ? (
-                    <img
-                      src={form.image}
-                      alt="Preview"
-                      className="w-full h-full object-cover rounded-full"
-                    />
-                  ) : (
-                    <div className="text-center">
-                      <FaPlus className="text-gray-400 text-xl mb-1 mx-auto" />
-                      <span className="text-xs text-gray-500">Add Image</span>
-                    </div>
-                  )}
-                </div>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
+      <div className="flex gap-8">
+        {/* Left Column - Image and Item Name */}
+        <div className="w-1/3 flex flex-col items-center">
+          {/* Image Upload */}
+          <label className="cursor-pointer relative mb-6">
+            <div className="w-40 h-40 rounded-lg bg-gray-100 flex items-center justify-center border-2 border-dashed border-gray-300 hover:bg-gray-200 transition-colors duration-150 overflow-hidden">
+              {form.image ? (
+                <img
+                  src={form.image}
+                  alt="Preview"
+                  className="w-full h-full object-cover rounded-lg"
                 />
-              </label>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Item Name *
-                </label>
-                <input
-                  type="text"
-                  placeholder="Enter product name"
-                  value={form.name}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (editProduct) setEditProduct({ ...editProduct, name: v });
-                    setForm({ ...form, name: v });
-                  }}
-                  className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Category *
-                </label>
-                <select
-                  value={form.category ?? ''}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (editProduct) setEditProduct({ ...editProduct, category: v });
-                    setForm({ ...form, category: v });
-                  }}
-                  className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
-                  required
-                >
-                  <option value="">Select Category</option>
-                  {categories.map((cat) => (
-                    <option key={cat._id} value={cat.name}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Metal Type *
-                </label>
-                <select
-                  value={form.metal}
-                  onChange={(e) => {
-                    const v = e.target.value as 'gold' | 'silver';
-                    if (editProduct) setEditProduct({ ...editProduct, metal: v });
-                    setForm({ ...form, metal: v, purity: '' });
-                  }}
-                  className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
-                  required
-                >
-                  <option value="">Select Metal</option>
-                  <option value="gold">Gold</option>
-                  <option value="silver">Silver</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Weight (grams) *
-                </label>
-                <input
-                  type="text"
-                  placeholder="Enter weight in grams"
-                  value={form.weight ?? ''}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (editProduct) setEditProduct({ ...editProduct, weight: v });
-                    setForm({ ...form, weight: v });
-                  }}
-                  className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
-                  required
-                />
-              </div>
-
-              {/* Purity Dropdown + Rate Preview */}
-              {form.metal === 'gold' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Purity *
-                  </label>
-                  <select
-                    value={form.purity ?? ''}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      if (editProduct) setEditProduct({ ...editProduct, purity: v });
-                      setForm({ ...form, purity: v });
-                    }}
-                    className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
-                    required
-                  >
-                    <option value="">Select Purity</option>
-                    <option value="24K">24K</option>
-                    <option value="22K">22K</option>
-                    <option value="18K">18K</option>
-                  </select>
-                  {form.purity && (
-                    <div className="text-sm text-green-600 mt-1">
-                      Current {form.purity} Gold Rate: ₹{goldRates[form.purity as '24K' | '22K' | '18K']?.toLocaleString('en-IN')}/g
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {form.metal === 'silver' && (
-                <div className="text-sm text-green-600 p-2 bg-green-50 rounded-md">
-                  Current Silver Rate: ₹{silverRate.toLocaleString('en-IN')}/g
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Making Charges (₹)
-                  </label>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    value={numToValue(form.makingCharges)}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      const val = v === '' ? 0 : parseFloat(v);
-                      if (editProduct) setEditProduct({ ...editProduct, makingCharges: val });
-                      setForm({ ...form, makingCharges: val });
-                    }}
-                    className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
-                    min="0"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Wastage (%)
-                  </label>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    value={numToValue(form.wastage)}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      const val = v === '' ? 0 : parseFloat(v);
-                      if (editProduct) setEditProduct({ ...editProduct, wastage: val });
-                      setForm({ ...form, wastage: val });
-                    }}
-                    className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
-                    min="0"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Stone Price (₹)
-                </label>
-                <input
-                  type="number"
-                  placeholder="0"
-                  value={numToValue(form.stonePrice)}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    const val = v === '' ? 0 : parseFloat(v);
-                    if (editProduct) setEditProduct({ ...editProduct, stonePrice: val });
-                    setForm({ ...form, stonePrice: val });
-                  }}
-                  className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
-                  min="0"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
-                </label>
-                <textarea
-                  placeholder="Enter product description"
-                  value={form.description ?? ''}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (editProduct) setEditProduct({ ...editProduct, description: v });
-                    setForm({ ...form, description: v });
-                  }}
-                  className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
-                  rows={3}
-                />
-              </div>
-
-              {form.weight && (
-                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="text-sm font-semibold text-blue-800">
-                    Estimated Price: ₹{estimatedPrice.toLocaleString('en-IN')}
-                  </div>
-                </div>
-              )}
-
-              {/* QR Code Section */}
-              {(form.sku || editProduct?.sku) && (
-                <div className="flex items-center justify-between mt-2 p-3 bg-gray-50 rounded-lg">
-                  <label className="text-gray-700 font-medium">QR Code</label>
-                  <button
-                    onClick={handlePrint}
-                    className="text-yellow-600 border border-yellow-600 px-3 py-1 rounded-md hover:bg-yellow-50 text-sm flex items-center gap-2 transition-colors duration-150"
-                  >
-                    Generate <FaPrint />
-                  </button>
+              ) : (
+                <div className="text-center">
+                  <FaPlus className="text-gray-400 text-2xl mb-2 mx-auto" />
+                  <span className="text-sm text-gray-500">Add Image</span>
                 </div>
               )}
             </div>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              className="hidden"
+            />
+          </label>
 
-            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
-              <button
-                onClick={closeModal}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors duration-150"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={editProduct ? handleUpdateProduct : handleSaveProduct}
-                disabled={!canSave}
-                className={`px-4 py-2 rounded-md transition-colors duration-150 flex items-center gap-2 ${
-                  canSave 
-                    ? 'bg-yellow-600 text-white hover:bg-yellow-700' 
-                    : 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                }`}
-              >
-                {editProduct ? 'Save Changes' : 'Add Product'}
-              </button>
-            </div>
+          {/* Item Name */}
+          <div className="w-full">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Item Name *
+            </label>
+            <input
+              type="text"
+              placeholder="Enter product name"
+              value={form.name}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (editProduct) setEditProduct({ ...editProduct, name: v });
+                setForm({ ...form, name: v });
+              }}
+              className="w-full border border-gray-300 p-3 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150 text-lg"
+              required
+            />
           </div>
         </div>
-      )}
+
+        {/* Right Column - All Other Fields */}
+        <div className="w-2/3 space-y-4">
+
+          {/* Category and Weight */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Category *
+              </label>
+              <select
+                value={form.category ?? ''}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (editProduct) setEditProduct({ ...editProduct, category: v });
+                  setForm({ ...form, category: v });
+                }}
+                className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
+                required
+              >
+                <option value="">Select Category</option>
+                {categories.map((cat) => (
+                  <option key={cat._id} value={cat.name}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Weight (grams) *
+              </label>
+              <input
+                type="text"
+                placeholder="Enter weight"
+                value={form.weight ?? ''}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (editProduct) setEditProduct({ ...editProduct, weight: v });
+                  setForm({ ...form, weight: v });
+                }}
+                className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
+                required
+              />
+            </div>
+          </div>
+
+          {/* Metal Type and Purity */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Metal Type *
+              </label>
+              <select
+                value={form.metal}
+                onChange={(e) => {
+                  const v = e.target.value as 'gold' | 'silver';
+                  if (editProduct) setEditProduct({ ...editProduct, metal: v });
+                  setForm({ ...form, metal: v, purity: '' });
+                }}
+                className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
+                required
+              >
+                <option value="">Select Metal</option>
+                <option value="gold">Gold</option>
+                <option value="silver">Silver</option>
+              </select>
+            </div>
+
+            {form.metal === 'gold' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Purity *
+                </label>
+                <select
+                  value={form.purity ?? ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (editProduct) setEditProduct({ ...editProduct, purity: v });
+                    setForm({ ...form, purity: v });
+                  }}
+                  className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
+                  required
+                >
+                  <option value="">Select Purity</option>
+                  <option value="24K">24K</option>
+                  <option value="22K">22K</option>
+                  <option value="18K">18K</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Rate Preview */}
+          {form.metal === 'gold' && form.purity && (
+            <div className="text-sm text-green-600 p-2 bg-green-50 rounded-md border border-green-200">
+              Current {form.purity} Gold Rate: ₹{goldRates[form.purity as '24K' | '22K' | '18K']?.toLocaleString('en-IN')}/g
+            </div>
+          )}
+          {form.metal === 'silver' && (
+            <div className="text-sm text-green-600 p-2 bg-green-50 rounded-md border border-green-200">
+              Current Silver Rate: ₹{silverRate.toLocaleString('en-IN')}/g
+            </div>
+          )}
+
+          {/* Making Charges, Wastage, Stone Price */}
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Making Charges (₹)
+              </label>
+              <input
+                type="number"
+                placeholder="0"
+                value={numToValue(form.makingCharges)}
+                onChange={(e) => {
+                  const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                  if (editProduct) setEditProduct({ ...editProduct, makingCharges: val });
+                  setForm({ ...form, makingCharges: val });
+                }}
+                className="w-full border border-gray-300 p-2 rounded-md"
+                min="0"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Wastage (%)
+              </label>
+              <input
+                type="number"
+                placeholder="0"
+                value={numToValue(form.wastage)}
+                onChange={(e) => {
+                  const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                  if (editProduct) setEditProduct({ ...editProduct, wastage: val });
+                  setForm({ ...form, wastage: val });
+                }}
+                                className="w-full border border-gray-300 p-2 rounded-md"
+                min="0"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Stone Price (₹)
+              </label>
+              <input
+                type="number"
+                placeholder="0"
+                value={numToValue(form.stonePrice)}
+                onChange={(e) => {
+                  const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                  if (editProduct) setEditProduct({ ...editProduct, stonePrice: val });
+                  setForm({ ...form, stonePrice: val });
+                }}
+                className="w-full border border-gray-300 p-2 rounded-md"
+                min="0"
+              />
+            </div>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Description
+            </label>
+            <textarea
+              placeholder="Enter product description"
+              value={form.description ?? ''}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (editProduct) setEditProduct({ ...editProduct, description: v });
+                setForm({ ...form, description: v });
+              }}
+              className="w-full border border-gray-300 p-3 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
+              rows={3}
+            />
+          </div>
+
+          {/* Estimated Price */}
+          {form.weight && (
+            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="text-sm font-semibold text-blue-800">
+                Estimated Price: ₹{estimatedPrice.toLocaleString('en-IN')}
+              </div>
+            </div>
+          )}
+
+          {/* QR Code Section */}
+          {(form.sku || editProduct?.sku) && (
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <label className="text-gray-700 font-medium">QR Code</label>
+              <button
+                onClick={handlePrint}
+                className="text-yellow-600 border border-yellow-600 px-3 py-1 rounded-md hover:bg-yellow-50 text-sm flex items-center gap-2 transition-colors duration-150"
+              >
+                Generate <FaPrint />
+              </button>
+            </div>
+          )}
+
+          {/* Buttons */}
+          <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
+            <button
+              onClick={closeModal}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors duration-150"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={editProduct ? handleUpdateProduct : handleSaveProduct}
+              disabled={!canSave}
+              className={`px-4 py-2 rounded-md transition-colors duration-150 flex items-center gap-2 ${
+                canSave 
+                  ? 'bg-yellow-600 text-white hover:bg-yellow-700' 
+                  : 'bg-gray-300 text-gray-600 cursor-not-allowed'
+              }`}
+            >
+              {editProduct ? 'Save Changes' : 'Add Product'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* 🗑️ Delete Confirmation Modal */}
       {confirmDeleteId && (
