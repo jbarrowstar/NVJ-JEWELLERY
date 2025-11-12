@@ -102,21 +102,14 @@ export default function AdminProductPage() {
 
   const [form, setForm] = useState<Product>(emptyForm);
 
-  const printRef = useRef<HTMLDivElement>(null);
-  
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
-    documentTitle: `QR-${form.sku || editProduct?.sku || 'Nirvaha'}`,
-  });
-
-  const handlePrintClick = useCallback((product?: Product) => {
-    const currentSku = product?.sku || form.sku || editProduct?.sku;
-    if (!currentSku || currentSku.trim() === '') {
-      toast.error('Cannot generate QR code: SKU is not set');
-      return;
-    }
-    handlePrint();
-  }, [form.sku, editProduct?.sku, handlePrint]);
+  const qrRef = useRef<HTMLDivElement>(null);
+  const handlePrint = useCallback(
+    useReactToPrint({
+      contentRef: qrRef,
+      documentTitle: `QR-${editProduct?.sku || form.sku || 'Nirvaha'}`,
+    }),
+    [editProduct, form]
+  );
 
   // Reset form function
   const resetForm = () => {
@@ -212,6 +205,7 @@ export default function AdminProductPage() {
     const id = setInterval(refreshRates, 30000);
     return () => { cancelled = true; clearInterval(id); };
   }, [goldRates, silverRate]);
+
 
   const calculatePrice = (
     metal: 'gold' | 'silver',
@@ -650,10 +644,6 @@ export default function AdminProductPage() {
                         src={prod.image}
                         alt={prod.name}
                         className="w-10 h-10 object-cover rounded-lg"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                        }}
                       />
                     ) : (
                       <div className="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center">
@@ -707,7 +697,7 @@ export default function AdminProductPage() {
                       </button>
                       <button
                         className="text-gray-600 hover:text-gray-800 p-1 rounded hover:bg-gray-50 transition-colors duration-150"
-                        onClick={() => handlePrintClick(prod)}
+                        onClick={() => { openEditModal(prod); setTimeout(() => handlePrint(), 150); }}
                         aria-label={`Print ${prod.name}`}
                         title="Print QR Code"
                       >
@@ -785,10 +775,6 @@ export default function AdminProductPage() {
                       src={form.image}
                       alt="Preview"
                       className="w-full h-full object-cover rounded-full"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = 'none';
-                      }}
                     />
                   ) : (
                     <div className="text-center">
@@ -1006,19 +992,15 @@ export default function AdminProductPage() {
               )}
 
               {/* QR Code Section */}
-              {(form.sku || editProduct?.sku) ? (
+              {(form.sku || editProduct?.sku) && (
                 <div className="flex items-center justify-between mt-2 p-3 bg-gray-50 rounded-lg">
                   <label className="text-gray-700 font-medium">QR Code</label>
                   <button
-                    onClick={() => handlePrintClick()}
+                    onClick={handlePrint}
                     className="text-yellow-600 border border-yellow-600 px-3 py-1 rounded-md hover:bg-yellow-50 text-sm flex items-center gap-2 transition-colors duration-150"
                   >
                     Generate <FaPrint />
                   </button>
-                </div>
-              ) : (
-                <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200 text-sm text-yellow-700">
-                  QR Code will be available after saving the product with a generated SKU.
                 </div>
               )}
             </div>
@@ -1092,7 +1074,7 @@ export default function AdminProductPage() {
 
       {/* Hidden QR Print Block - Printable area from 0 to 65mm from top */}
       <div style={{ display: 'none' }}>
-        <div ref={printRef}>
+        <div ref={qrRef}>
           <div style={{
             width: '15mm',
             height: '65mm', // Printable area height (0 to 65mm from top)
@@ -1133,7 +1115,7 @@ export default function AdminProductPage() {
                   marginBottom: '0.3mm',
                   fontWeight: 'bold'
                 }}>
-                  SKU: {form.sku || editProduct?.sku || 'SKU-NOT-SET'}
+                  SKU: {form.sku || editProduct?.sku || 'N/A'}
                 </div>
                 <div style={{ 
                   display: 'flex', 
@@ -1142,9 +1124,9 @@ export default function AdminProductPage() {
                   fontSize: '5.5px',
                   lineHeight: '1.1'
                 }}>
-                  <span><strong>M:</strong> {(form.metal || editProduct?.metal || 'GOLD')?.toUpperCase()}</span>
-                  <span><strong>P:</strong> {form.purity || editProduct?.purity || '24K'}</span>
-                  <span><strong>W:</strong> {form.weight || editProduct?.weight || '0'}g</span>
+                  <span><strong>M:</strong> {(form.metal || editProduct?.metal || 'N/A')?.toUpperCase()}</span>
+                  <span><strong>P:</strong> {form.purity || editProduct?.purity || 'N/A'}</span>
+                  <span><strong>W:</strong> {form.weight || editProduct?.weight || 'N/A'}g</span>
                 </div>
               </div>
             </div>
@@ -1164,15 +1146,12 @@ export default function AdminProductPage() {
                 justifyContent: 'center'
               }}>
                 <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(form.sku || editProduct?.sku || 'DEFAULT-SKU')}`}
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(form.sku || editProduct?.sku || '')}`}
                   alt="QR Code"
                   style={{ 
                     width: '100%', 
                     height: '100%',
                     objectFit: 'contain'
-                  }}
-                  onError={() => {
-                    console.warn('QR code failed to load for SKU:', form.sku || editProduct?.sku);
                   }}
                 />
               </div>
