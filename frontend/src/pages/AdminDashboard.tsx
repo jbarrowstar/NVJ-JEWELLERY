@@ -11,11 +11,13 @@ import {
   PointElement,
   Tooltip,
   Legend,
+  Filler, // Add this import
 } from 'chart.js';
 import { fetchOrders, type Order } from '../services/orderService';
 import { fetchRates, updateRate, type GoldPurities } from '../services/rateService';
 
-ChartJS.register(LineElement, CategoryScale, LinearScale, PointElement, Tooltip, Legend);
+// Register all required plugins including Filler
+ChartJS.register(LineElement, CategoryScale, LinearScale, PointElement, Tooltip, Legend, Filler);
 
 export default function AdminDashboard() {
   const [orders, setOrders] = useState<Order[]>([]);

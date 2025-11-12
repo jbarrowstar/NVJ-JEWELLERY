@@ -49,6 +49,31 @@ function SectionHeader({ icon, title }: { icon: JSX.Element; title: string }) {
   );
 }
 
+// Image helper functions
+const validateImageUrl = (url: string | undefined): boolean => {
+  if (!url) return false;
+  
+  try {
+    const parsedUrl = new URL(url, window.location.origin);
+    return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
+  } catch {
+    return typeof url === 'string' && url.length > 0;
+  }
+};
+
+const getImageUrl = (imagePath: string | undefined): string => {
+  if (!imagePath || !validateImageUrl(imagePath)) {
+    return '/default.jpg';
+  }
+  
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+  
+  const normalizedPath = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
+  return normalizedPath;
+};
+
 export default function BillingPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [suggestedItems, setSuggestedItems] = useState<Product[]>([]);
@@ -131,36 +156,40 @@ export default function BillingPage() {
     }
   };
 
+  // Load products with improved image handling
+  const loadProducts = async () => {
+    setLoading(true);
+    try {
+      const items = await fetchProducts();
+      const safeItems = items
+        .filter((item) => item.available !== false)
+        .map((item) => ({
+          name: item.name,
+          price: item.price,
+          image: item.image,
+          sku: item.sku,
+          available: item.available,
+        }));
+      
+      console.log('Loaded products:', safeItems);
+      
+      setSuggestedItems(safeItems);
+      setFilteredItems(safeItems);
+
+      const fuse = new Fuse(safeItems, {
+        keys: ['name', 'sku'],
+        threshold: 0.3,
+      });
+      setProductFuse(fuse);
+    } catch (err) {
+      console.error('Product fetch error:', err);
+      toast.error('Failed to load products');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const loadProducts = async () => {
-      setLoading(true);
-      try {
-        const items = await fetchProducts();
-        const safeItems = items
-          .filter((item) => item.available !== false && typeof item.image === 'string')
-          .map((item) => ({
-            name: item.name,
-            price: item.price,
-            image: item.image as string,
-            sku: item.sku,
-            available: item.available,
-          }));
-        setSuggestedItems(safeItems);
-        setFilteredItems(safeItems);
-
-        const fuse = new Fuse(safeItems, {
-          keys: ['name', 'sku'],
-          threshold: 0.3,
-        });
-        setProductFuse(fuse);
-      } catch (err) {
-        console.error('Product fetch error:', err);
-        toast.error('Failed to load products');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadProducts();
   }, []);
 
@@ -360,23 +389,7 @@ export default function BillingPage() {
         );
 
         // Refresh product list after marking sold
-        fetchProducts()
-          .then((items: Product[]) => {
-            const safeItems = items
-              .filter((item) => item.available !== false && typeof item.image === 'string')
-              .map((item) => ({
-                name: item.name,
-                price: item.price,
-                image: item.image as string,
-                sku: item.sku,
-                available: item.available,
-              }));
-
-            setSuggestedItems(safeItems);
-            setFilteredItems(safeItems);
-            setProductFuse(new Fuse(safeItems, { keys: ['name', 'sku'], threshold: 0.3 }));
-          })
-          .catch((err) => console.error('Product refresh error:', err));
+        loadProducts();
 
       } else {
         toast.error(res.message || 'Failed to save order');
@@ -590,11 +603,11 @@ export default function BillingPage() {
     try {
       const items = await fetchProducts();
       const safeItems = items
-        .filter((item) => item.available !== false && typeof item.image === 'string')
+        .filter((item) => item.available !== false)
         .map((item) => ({
           name: item.name,
           price: item.price,
-          image: item.image as string,
+          image: item.image,
           sku: item.sku,
           available: item.available,
         }));
@@ -699,12 +712,21 @@ export default function BillingPage() {
                       key={idx}
                       className="border border-gray-200 rounded-lg p-4 bg-white hover:shadow-md transition-shadow duration-200 flex flex-col items-center text-center"
                     >
-                      <img
-                        src={item.image ? `http://localhost:3001${item.image}` : '/default.jpg'}
-                        alt={item.name}
-                        className="h-20 w-20 object-cover rounded-lg mb-3"
-                      />
-                      <span className="font-semibold text-sm text-gray-800 mb-1">{item.name}</span>
+                      <div className="h-20 w-20 rounded-lg mb-3 bg-gray-100 flex items-center justify-center overflow-hidden">
+                        <img
+                          src={getImageUrl(item.image)}
+                          alt={item.name}
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = '/default.jpg';
+                          }}
+                          onLoad={() => {
+                            console.log(`Successfully loaded image for: ${item.name}`);
+                          }}
+                        />
+                      </div>
+                      <span className="font-semibold text-sm text-gray-800 mb-1 line-clamp-2">{item.name}</span>
                       <span className="text-sm text-gray-600 mb-3">
                         ₹{item.price.toLocaleString()}
                       </span>
