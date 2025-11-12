@@ -1079,72 +1079,80 @@ export default function AdminProductPage() {
       height: '65mm', // Printable area height (0 to 65mm from top)
       fontFamily: 'Arial, sans-serif',
       fontSize: '6px',
-      padding: '0.5mm',
+      padding: '2mm 0.5mm', // More vertical padding for top/bottom spacing
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      justifyContent: 'space-between',
+      justifyContent: 'space-between', // This evenly spaces the sections
       boxSizing: 'border-box',
       border: '1px solid #ccc'
-      // No marginTop needed since printing starts from top (0mm)
     }}>
-      {/* Product Name - Top section */}
+      {/* Top section - Name and Details together */}
       <div style={{ 
-        textAlign: 'center'
+        textAlign: 'center',
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        gap: '0.5mm'
       }}>
+        {/* Product Name */}
         <div style={{ 
           fontWeight: 'bold', 
-          fontSize: '7px', 
-          marginBottom: '0.5mm',
+          fontSize: '7px',
           wordBreak: 'break-word',
-          maxHeight: '20mm',
+          maxHeight: '12mm',
           overflow: 'hidden',
           lineHeight: '1.1'
         }}>
           {form.name || editProduct?.name}
         </div>
-      </div>
-      
-      {/* QR Code - Middle section */}
-      <div style={{ 
-        width: '12mm', 
-        height: '12mm', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        margin: '1mm 0'
-      }}>
-        <img
-          src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(form.sku || editProduct?.sku || '')}`}
-          alt="QR Code"
-          style={{ 
-            width: '100%', 
-            height: '100%',
-            objectFit: 'contain'
-          }}
-        />
-      </div>
-      
-      {/* Product Details - Bottom section */}
-      <div style={{ 
-        textAlign: 'center'
-      }}>
-        <div style={{ 
-          marginBottom: '0.5mm',
-          fontWeight: 'bold'
-        }}>
-          SKU: {form.sku || editProduct?.sku}
+        
+        {/* Product Details */}
+        <div>
+          <div style={{ 
+            marginBottom: '0.3mm',
+            fontWeight: 'bold'
+          }}>
+            SKU: {form.sku || editProduct?.sku}
+          </div>
+          <div style={{ 
+            display: 'flex', 
+            flexDirection: 'column',
+            gap: '0.2mm',
+            fontSize: '5.5px',
+            lineHeight: '1.1'
+          }}>
+            <span><strong>M:</strong> {(form.metal || editProduct?.metal)?.toUpperCase()}</span>
+            <span><strong>P:</strong> {form.purity || editProduct?.purity}</span>
+            <span><strong>W:</strong> {form.weight || editProduct?.weight}g</span>
+          </div>
         </div>
+      </div>
+      
+      {/* Bottom section - QR Code with equal spacing */}
+      <div style={{ 
+        flex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
         <div style={{ 
+          width: '12mm', 
+          height: '12mm', 
           display: 'flex', 
-          flexDirection: 'column',
-          gap: '0.3mm',
-          fontSize: '5.5px',
-          lineHeight: '1.1'
+          alignItems: 'center', 
+          justifyContent: 'center'
         }}>
-          <span><strong>M:</strong> {(form.metal || editProduct?.metal)?.toUpperCase()}</span>
-          <span><strong>P:</strong> {form.purity || editProduct?.purity}</span>
-          <span><strong>W:</strong> {form.weight || editProduct?.weight}g</span>
+          <img
+            src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(form.sku || editProduct?.sku || '')}`}
+            alt="QR Code"
+            style={{ 
+              width: '100%', 
+              height: '100%',
+              objectFit: 'contain'
+            }}
+          />
         </div>
       </div>
     </div>
