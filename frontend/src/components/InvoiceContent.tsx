@@ -94,7 +94,7 @@ const InvoiceContent = React.forwardRef<HTMLDivElement, {
             fontSize: '12px',
             margin: '2px 0'
           }}>
-            GSTIN: 29AAAAA1234F000 | PAN: 29AAAAA1234F
+            GSTIN: 29AQXPA1757F2ZI
           </p>
         </div>
       </div>

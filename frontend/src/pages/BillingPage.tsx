@@ -982,170 +982,190 @@ export default function BillingPage() {
         </div>
       )}
 
-      {/* Pay Now Modal */}
-      {showPaymentModal && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl text-sm z-50 relative p-6">
-            <button
-              onClick={() => setShowPaymentModal(false)}
-              className="absolute top-4 right-4 text-gray-500 hover:text-red-500 text-xl transition-colors duration-150"
-              aria-label="Close"
-            >
-              <FaTimes />
-            </button>
+{/* Pay Now Modal */}
+{showPaymentModal && (
+  <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl text-sm z-50 relative p-6">
+      <button
+        onClick={() => setShowPaymentModal(false)}
+        className="absolute top-4 right-4 text-gray-500 hover:text-red-500 text-xl transition-colors duration-150"
+        aria-label="Close"
+      >
+        <FaTimes />
+      </button>
+      
+      <h2 className="text-xl font-semibold mb-6 text-center text-gray-800">Complete Payment</h2>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Payment Methods */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Payment Methods</h3>
+          
+          {(['Cash', 'Card', 'UPI', 'Bank Transfer', 'Wallet'] as PaymentMethod[]).map((method) => {
+            const isSelected = selectedPaymentMethods.some(p => p.method === method);
+            const amount = paymentAmount[method] || 0;
             
-            <h2 className="text-xl font-semibold mb-6 text-center text-gray-800">Complete Payment</h2>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Payment Methods */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">Payment Methods</h3>
+            return (
+              <div key={method} className="border border-gray-200 rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedPaymentMethods(prev => [
+                            ...prev, 
+                            { method, amount: 0 }
+                          ]);
+                        } else {
+                          setSelectedPaymentMethods(prev => 
+                            prev.filter(p => p.method !== method)
+                          );
+                          setPaymentAmount(prev => {
+                            const updated = { ...prev };
+                            delete updated[method];
+                            return updated;
+                          });
+                        }
+                      }}
+                      className="w-4 h-4 text-yellow-600 focus:ring-yellow-500"
+                    />
+                    <span className="font-medium text-gray-800">{method}</span>
+                  </label>
+                </div>
                 
-                {(['Cash', 'Card', 'UPI', 'Bank Transfer', 'Wallet'] as PaymentMethod[]).map((method) => {
-                  const isSelected = selectedPaymentMethods.some(p => p.method === method);
-                  const amount = paymentAmount[method] || 0;
-                  
-                  return (
-                    <div key={method} className="border border-gray-200 rounded-lg p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <label className="flex items-center gap-3 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedPaymentMethods(prev => [
-                                  ...prev, 
-                                  { method, amount: 0 }
-                                ]);
-                              } else {
-                                setSelectedPaymentMethods(prev => 
-                                  prev.filter(p => p.method !== method)
-                                );
-                                setPaymentAmount(prev => {
-                                  const updated = { ...prev };
-                                  delete updated[method];
-                                  return updated;
-                                });
-                              }
-                            }}
-                            className="w-4 h-4 text-yellow-600 focus:ring-yellow-500"
-                          />
-                          <span className="font-medium text-gray-800">{method}</span>
-                        </label>
-                      </div>
-                      
-                      {isSelected && (
-                        <div className="flex items-center gap-2">
-                          <span className="text-gray-600 font-medium">₹</span>
-                          <input
-                            type="number"
-                            placeholder="Enter amount"
-                            value={amount}
-                            onChange={(e) => {
-                              const value = Number(e.target.value);
-                              setPaymentAmount(prev => ({
-                                ...prev,
-                                [method]: value
-                              }));
-                              setSelectedPaymentMethods(prev =>
-                                prev.map(p =>
-                                  p.method === method ? { ...p, amount: value } : p
-                                )
-                              );
-                            }}
-                            className="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-                
-                {/* Payment Summary */}
-                {selectedPaymentMethods.length > 0 && (
-                  <div className="border-t border-gray-200 pt-4 mt-4">
-                    <div className="flex justify-between font-semibold text-lg">
-                      <span>Total Paid:</span>
-                      <span>₹{totalPaid.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-sm mt-2">
-                      <span>Balance:</span>
-                      <span className={`font-semibold ${
-                        balance < 0 ? 'text-green-600' : balance > 0 ? 'text-red-600' : 'text-gray-600'
-                      }`}>
-                        ₹{Math.abs(balance).toLocaleString()}
-                        {balance < 0 ? ' (Change)' : balance > 0 ? ' (Due)' : ' (Paid)'}
-                      </span>
-                    </div>
+                {isSelected && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-600 font-medium">₹</span>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={amount === 0 ? '' : amount}
+                      onChange={(e) => {
+                        const value = e.target.value === '' ? 0 : Number(e.target.value);
+                        setPaymentAmount(prev => ({
+                          ...prev,
+                          [method]: value
+                        }));
+                        setSelectedPaymentMethods(prev =>
+                          prev.map(p =>
+                            p.method === method ? { ...p, amount: value } : p
+                          )
+                        );
+                      }}
+                      onFocus={(e) => {
+                        if (e.target.value === '0' || e.target.value === '') {
+                          e.target.value = '';
+                        }
+                      }}
+                      onBlur={(e) => {
+                        if (e.target.value === '') {
+                          e.target.value = '0';
+                          const value = 0;
+                          setPaymentAmount(prev => ({
+                            ...prev,
+                            [method]: value
+                          }));
+                          setSelectedPaymentMethods(prev =>
+                            prev.map(p =>
+                              p.method === method ? { ...p, amount: value } : p
+                            )
+                          );
+                        }
+                      }}
+                      className="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors duration-150"
+                    />
                   </div>
                 )}
               </div>
-
-              {/* Order Summary */}
-              <div className="space-y-4 bg-gray-50 border border-gray-200 rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">Order Summary</h3>
-                
-                <div className="space-y-3 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Customer:</span>
-                    <span className="font-medium">{customerName || '—'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Phone:</span>
-                    <span className="font-medium">{customerPhone || '—'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Date & Time:</span>
-                    <span className="font-medium">
-                      {new Date().toLocaleDateString()} {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="border-t border-gray-200 pt-4 mt-4">
-                  <h4 className="font-semibold text-gray-800 mb-3">Order Items</h4>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {cart.map((item, idx) => (
-                      <div key={idx} className="flex justify-between text-sm">
-                        <span className="text-gray-700">{item.name}</span>
-                        <span className="font-medium">₹{(item.price * item.qty).toLocaleString()}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="border-t border-gray-200 pt-4 mt-4 space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span>Subtotal</span>
-                    <span>₹{subtotal.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Discount</span>
-                    <span className="text-red-600">- ₹{appliedDiscount.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Tax ({appliedTaxRate}%)</span>
-                    <span>₹{taxAmount.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-200">
-                    <span>Grand Total</span>
-                    <span className="text-yellow-700">₹{grandTotal.toLocaleString()}</span>
-                  </div>
-                </div>
-                
-                <button
-                  className="w-full bg-yellow-600 hover:bg-yellow-700 text-white py-3 rounded-lg mt-4 transition-colors duration-200 font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed"
-                  onClick={handleConfirmPayment}
-                  disabled={selectedPaymentMethods.length === 0 || totalPaid <= 0}
-                >
-                  Confirm Payment
-                </button>
+            );
+          })}
+          
+          {/* Payment Summary */}
+          {selectedPaymentMethods.length > 0 && (
+            <div className="border-t border-gray-200 pt-4 mt-4">
+              <div className="flex justify-between font-semibold text-lg">
+                <span>Total Paid:</span>
+                <span>₹{totalPaid.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-sm mt-2">
+                <span>Balance:</span>
+                <span className={`font-semibold ${
+                  balance < 0 ? 'text-green-600' : balance > 0 ? 'text-red-600' : 'text-gray-600'
+                }`}>
+                  ₹{Math.abs(balance).toLocaleString()}
+                  {balance < 0 ? ' (Change)' : balance > 0 ? ' (Due)' : ' (Paid)'}
+                </span>
               </div>
             </div>
-          </div>
+          )}
         </div>
-      )}
+
+        {/* Order Summary */}
+        <div className="space-y-4 bg-gray-50 border border-gray-200 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Order Summary</h3>
+          
+          <div className="space-y-3 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-600">Customer:</span>
+              <span className="font-medium">{customerName || '—'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Phone:</span>
+              <span className="font-medium">{customerPhone || '—'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Date & Time:</span>
+              <span className="font-medium">
+                {new Date().toLocaleDateString()} {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-200 pt-4 mt-4">
+            <h4 className="font-semibold text-gray-800 mb-3">Order Items</h4>
+            <div className="space-y-2 max-h-40 overflow-y-auto">
+              {cart.map((item, idx) => (
+                <div key={idx} className="flex justify-between text-sm">
+                  <span className="text-gray-700">{item.name}</span>
+                  <span className="font-medium">₹{(item.price * item.qty).toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="border-t border-gray-200 pt-4 mt-4 space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span>Subtotal</span>
+              <span>₹{subtotal.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Discount</span>
+              <span className="text-red-600">- ₹{appliedDiscount.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Tax ({appliedTaxRate}%)</span>
+              <span>₹{taxAmount.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-200">
+              <span>Grand Total</span>
+              <span className="text-yellow-700">₹{grandTotal.toLocaleString()}</span>
+            </div>
+          </div>
+          
+          <button
+            className="w-full bg-yellow-600 hover:bg-yellow-700 text-white py-3 rounded-lg mt-4 transition-colors duration-200 font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed"
+            onClick={handleConfirmPayment}
+            disabled={selectedPaymentMethods.length === 0 || totalPaid <= 0}
+          >
+            Confirm Payment
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* Invoice Modal */}
       {showInvoiceModal && (
