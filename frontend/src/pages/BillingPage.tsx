@@ -10,6 +10,7 @@ import Fuse from 'fuse.js';
 import InvoiceContent from '../components/InvoiceContent';
 import { useRef } from 'react';
 import { useReactToPrint } from 'react-to-print';
+import html2pdf from 'html2pdf.js';
 
 type Product = {
   name: string;
@@ -414,6 +415,39 @@ export default function BillingPage() {
     }),
     [lastOrder]
   );
+
+       const handleDownloadPDF = () => {
+        if (!invoiceRef.current) return;
+
+        const element = invoiceRef.current.cloneNode(true) as HTMLElement;
+
+        // Remove unsupported color functions
+        element.querySelectorAll('*').forEach((el) => {
+          const style = window.getComputedStyle(el);
+          if (style.color.includes('oklch') || style.backgroundColor.includes('oklch')) {
+            (el as HTMLElement).style.color = '#000';
+            (el as HTMLElement).style.backgroundColor = '#fff';
+          }
+        });
+
+        html2pdf()
+          .set({
+            margin: [10, 10, 10, 10],
+            filename: `Invoice-${lastOrder?.invoiceNumber || 'Nirvaha'}.pdf`,
+            html2canvas: {
+              scale: 2,
+              useCORS: true,
+              logging: false,
+            },
+            jsPDF: {
+              unit: 'mm',
+              format: 'a4',
+              orientation: 'portrait',
+            },
+          })
+          .from(element)
+          .save();
+      };
 
   const resetOrder = () => {
     setCart([]);
@@ -1207,6 +1241,9 @@ export default function BillingPage() {
 
             {/* Action Buttons */}
             <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
+              <button onClick={handleDownloadPDF} className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600">
+                Download Invoice
+              </button>
               <button
                 onClick={handlePrint}
                 className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors duration-200 flex items-center gap-2"

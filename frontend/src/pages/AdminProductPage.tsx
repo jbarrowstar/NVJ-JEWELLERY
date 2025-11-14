@@ -1086,93 +1086,97 @@ export default function AdminProductPage() {
         </div>
       )}
 
-      {/* Hidden QR Print Block - Printable area from 0 to 65mm from top */}
-      <div style={{ display: 'none' }}>
-        <div ref={qrRef}>
-          <div style={{
-            width: '15mm',
-            height: '65mm', // Printable area height (0 to 65mm from top)
-            fontFamily: 'Arial, sans-serif',
-            fontSize: '6px',
-            padding: '2mm 0.5mm', // More vertical padding for top/bottom spacing
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'space-between', // This evenly spaces the sections
-            boxSizing: 'border-box',
-            border: '1px solid #ccc'
+{/* Hidden QR Print Block - Printable area from 0 to 65mm from top */}
+<div style={{ display: 'none' }}>
+  <div ref={qrRef}>
+    {/* Only render if SKU exists */}
+    {(form.sku || editProduct?.sku) && (
+      <div style={{
+        width: '15mm',
+        height: '65mm', // Printable area height (0 to 65mm from top)
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '7px', // Increased from 6px
+        padding: '2mm 0.5mm', // More vertical padding for top/bottom spacing
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'space-between', // This evenly spaces the sections
+        boxSizing: 'border-box',
+        border: '1px solid #ccc'
+      }}>
+        {/* Top section - Name and Details together */}
+        <div style={{ 
+          textAlign: 'center',
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          gap: '0.5mm'
+        }}>
+          {/* Product Name */}
+          <div style={{ 
+            fontWeight: 'bold', 
+            fontSize: '8px', // Increased from 7px
+            wordBreak: 'break-word',
+            maxHeight: '12mm',
+            overflow: 'hidden',
+            lineHeight: '1.1'
           }}>
-            {/* Top section - Name and Details together */}
+            {form.name || editProduct?.name || 'Product Name'}
+          </div>
+          
+          {/* Product Details */}
+          <div>
             <div style={{ 
-              textAlign: 'center',
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              gap: '0.5mm'
+              marginBottom: '0.3mm',
+              fontWeight: 'bold',
+              fontSize: '7px' // Added specific font size for SKU
             }}>
-              {/* Product Name */}
-              <div style={{ 
-                fontWeight: 'bold', 
-                fontSize: '7px',
-                wordBreak: 'break-word',
-                maxHeight: '12mm',
-                overflow: 'hidden',
-                lineHeight: '1.1'
-              }}>
-                {form.name || editProduct?.name || 'Product Name'}
-              </div>
-              
-              {/* Product Details */}
-              <div>
-                <div style={{ 
-                  marginBottom: '0.3mm',
-                  fontWeight: 'bold'
-                }}>
-                  SKU: {form.sku || editProduct?.sku || 'N/A'}
-                </div>
-                <div style={{ 
-                  display: 'flex', 
-                  flexDirection: 'column',
-                  gap: '0.2mm',
-                  fontSize: '5.5px',
-                  lineHeight: '1.1'
-                }}>
-                  <span><strong>M:</strong> {(form.metal || editProduct?.metal || 'N/A')?.toUpperCase()}</span>
-                  <span><strong>P:</strong> {form.purity || editProduct?.purity || 'N/A'}</span>
-                  <span><strong>W:</strong> {form.weight || editProduct?.weight || 'N/A'}g</span>
-                </div>
-              </div>
+              SKU: {form.sku || editProduct?.sku || 'N/A'}
             </div>
-            
-            {/* Bottom section - QR Code with equal spacing */}
             <div style={{ 
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
+              display: 'flex', 
+              flexDirection: 'column',
+              gap: '0.2mm',
+              fontSize: '6.5px', // Increased from 5.5px
+              lineHeight: '1.1'
             }}>
-              <div style={{ 
-                width: '12mm', 
-                height: '12mm', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center'
-              }}>
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(form.sku || editProduct?.sku || '')}`}
-                  alt="QR Code"
-                  style={{ 
-                    width: '100%', 
-                    height: '100%',
-                    objectFit: 'contain'
-                  }}
-                />
-              </div>
+              <span><strong>M:</strong> {(form.metal || editProduct?.metal || 'N/A')?.toUpperCase()}</span>
+              <span><strong>P:</strong> {form.purity || editProduct?.purity || 'N/A'}</span>
+              <span><strong>W:</strong> {form.weight || editProduct?.weight || 'N/A'}g</span>
             </div>
           </div>
         </div>
+        
+        {/* Bottom section - QR Code with equal spacing */}
+        <div style={{ 
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <div style={{ 
+            width: '12mm', 
+            height: '12mm', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center'
+          }}>
+            <img
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent((form.sku || editProduct?.sku) || 'placeholder')}`}
+              alt="QR Code"
+              style={{ 
+                width: '100%', 
+                height: '100%',
+                objectFit: 'contain'
+              }}
+            />
+          </div>
+        </div>
       </div>
+    )}
+  </div>
+</div>
     </Layout>
   );
 }

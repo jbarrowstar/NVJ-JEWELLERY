@@ -8,12 +8,13 @@ import {
   FaUndoAlt,
   FaHistory,
   FaChevronLeft,
-  FaChevronRight
+  FaChevronRight,
+  FaTrash
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import Fuse from 'fuse.js';
 import { checkReturnExists } from '../services/returnService';
-import { fetchOrders } from '../services/orderService';
+import { fetchOrders, deleteOrder } from '../services/orderService';
 import { fetchReturns, createReturn } from '../services/returnService';
 import { useReactToPrint } from 'react-to-print';
 import InvoiceContent from '../components/InvoiceContent';
@@ -58,6 +59,7 @@ export default function OrderHistoryPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [checkingReturn, setCheckingReturn] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const itemsPerPage = 30;
 
   useEffect(() => {
@@ -91,6 +93,30 @@ export default function OrderHistoryPage() {
 
     fetchData();
   }, []);
+
+  // Add delete order handler
+  const handleDeleteOrder = async () => {
+    if (!confirmDeleteId) return;
+    
+    try {
+      const result = await deleteOrder(confirmDeleteId);
+      
+      if (result.success) {
+        toast.success('Order deleted successfully');
+        // Remove from local state
+        setOrders(prev => prev.filter(order => order._id !== confirmDeleteId));
+        // Also remove from returned orders if it was there
+        setReturnedOrderIds(prev => prev.filter(id => id !== confirmDeleteId));
+      } else {
+        toast.error(result.message || 'Failed to delete order');
+      }
+    } catch (err) {
+      console.error('Delete order error:', err);
+      toast.error('Failed to delete order');
+    } finally {
+      setConfirmDeleteId(null);
+    }
+  };
 
   const filteredByDate = useMemo(() => orders.filter((order) => {
     if (!selectedDate) return true;
@@ -450,6 +476,15 @@ export default function OrderHistoryPage() {
                               <FaUndoAlt />
                             )}
                           </button>
+
+                          {/* Delete Button */}
+                          <button
+                            className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 transition-colors duration-150"
+                            onClick={() => setConfirmDeleteId(order._id)}
+                            title="Delete Order"
+                          >
+                            <FaTrash />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -599,6 +634,50 @@ export default function OrderHistoryPage() {
           </div>
         )}
       </Layout>
+
+      {/* 🗑️ Delete Confirmation Modal - Exact same style as Employee page */}
+      {confirmDeleteId && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md z-50 relative">
+            <button
+              onClick={() => setConfirmDeleteId(null)}
+              className="absolute top-4 right-4 text-gray-500 hover:text-red-500 text-xl transition-colors duration-150"
+              aria-label="Close"
+            >
+              <FaTimes />
+            </button>
+
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                <FaTrash className="h-6 w-6 text-red-600" />
+              </div>
+              
+              <h2 className="text-lg font-semibold mb-2 text-red-600">
+                Delete Order
+              </h2>
+
+              <p className="text-gray-700 mb-6">
+                Are you sure you want to permanently delete this order? This action cannot be undone.
+              </p>
+
+              <div className="flex justify-center gap-3">
+                <button
+                  onClick={() => setConfirmDeleteId(null)}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors duration-150"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteOrder}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors duration-150 flex items-center gap-2"
+                >
+                  <FaTrash /> Confirm Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Hidden printable layout */}
       {printOrder && (
